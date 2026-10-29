@@ -17,6 +17,7 @@ from werker.invoicing import validate_only
 from werker.pipeline import SendError
 from werker.runtime import Runtime
 from werker.store import WAITING, Store
+from werker.web_billing import billing_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -363,4 +364,5 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
             background.add_task(pipeline().process, msg)
         return {"status": "ok"}
 
+    app.include_router(billing_router(runtime, ui_auth))
     return app

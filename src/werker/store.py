@@ -120,13 +120,19 @@ def _as_utc(moment: datetime) -> datetime:
     return moment.astimezone(timezone.utc)
 
 
-class Store:
+# De mixins gebruiken _locked en _as_utc uit dit bestand, dus ze worden pas hier geïmporteerd.
+from werker.store_billing import BillingStoreMixin  # noqa: E402
+from werker.store_reports import ReportsStoreMixin  # noqa: E402
+
+
+class Store(ReportsStoreMixin, BillingStoreMixin):
     def __init__(self, path: str):
         self._lock = threading.RLock()
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
         self._migrate()
+        self._ensure_billing_schema()
 
     def close(self) -> None:
         self._db.close()
