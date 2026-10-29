@@ -27,6 +27,7 @@ from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
 from werker import privacy
+from werker.connectors.gmail import intent_labeler
 from werker.pipeline import Pipeline
 from werker.prices import PriceBook
 from werker.invoicing import Invoicing
@@ -79,6 +80,10 @@ DEFAULTS = {
     "WERKER_OUTLOOK_TOKEN_CACHE": "",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
+
+
+def _no_labeler(msg, intent) -> None:
+    return None
 
 
 class Unconfigured:
@@ -280,15 +285,20 @@ class Runtime:
             reason = "De API-sleutel ontbreekt. Vul die in bij Instellingen."
             classifier, replier = Unconfigured(reason), Unconfigured(reason)
         prices = PriceBook(price_loader(settings))
+        connectors = build_connectors(env)
+        # Alleen Gmail krijgt labels; zonder Gmail-koppeling wordt het label-stapje uitgeschakeld.
+        gmail = connectors.get("mail:gmail")
+        labeler = intent_labeler(gmail) if gmail is not None else _no_labeler
         return {
             "classifier": classifier,
             "replier": replier,
             "prices": prices,
             "policy": settings.policy,
             "rules": settings.rules,
-            "connectors": build_connectors(env),
+            "connectors": connectors,
             "payments": self.invoicing.match_message,
             "calendar": _calendar(env),
+            "labeler": labeler,
         }
 
     def reconfigure(self) -> None:

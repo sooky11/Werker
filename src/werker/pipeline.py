@@ -48,12 +48,15 @@ class Pipeline:
         connectors: Mapping[str, Connector],
         payments: Any = None,
         calendar: CalendarProvider | None = None,
+        labeler: Any = None,
     ):
         self._store = store
         # Agenda voor afspraken. Met NoCalendar worden er geen tijdstippen voorgesteld en geen afspraken gemaakt.
         self.calendar: CalendarProvider = calendar if calendar is not None else NoCalendar()
         # Functie(body, client_id) -> lijst met nummers van facturen die daardoor betaald zijn.
         self._payments = payments
+        # Functie(msg, intent) die het bericht in de bronmailbox labelt. Fouten worden gelogd, nooit doorgegeven.
+        self._labeler = labeler
         self._classifier = classifier
         self._replier = replier
         self.prices = prices
@@ -74,6 +77,7 @@ class Pipeline:
         connectors: Mapping[str, Connector] | None = None,
         payments: Any = None,
         calendar: CalendarProvider | None = None,
+        labeler: Any = None,
     ) -> None:
         """Pas instellingen toe zonder de app opnieuw te starten. Alleen de meegegeven onderdelen veranderen."""
         if classifier is not None:
@@ -92,6 +96,8 @@ class Pipeline:
             self._payments = payments
         if calendar is not None:
             self.calendar = calendar
+        if labeler is not None:
+            self._labeler = labeler
 
     # ---------- binnenkomende berichten ----------
 
@@ -130,6 +136,7 @@ class Pipeline:
         else:
             cls = self._classifier.classify(msg)
         self._store.set_classification(message_id, cls)
+        self._label(msg, cls.intent)
 
         if cls.intent is Intent.BETALING:
             return self._handle_payment(message_id, msg, cls)
@@ -197,6 +204,13 @@ class Pipeline:
             return None
         slots = free_slots(busy, WORK_START, WORK_END, APPOINTMENT_LENGTH, days, now, tz=LOCAL_TZ, limit=SLOT_COUNT)
         return format_slots_nl(slots)
+    def _label(self, msg: Message, intent: Intent) -> None:
+        if self._labeler is None:
+            return
+        try:
+            self._labeler(msg, intent)
+        except Exception:
+            log.exception("label zetten mislukt voor %s/%s", msg.channel, msg.external_id)
 
     def _handle_payment(self, message_id: int, msg: Message, cls: Classification) -> Decision:
         row = self._store.get_message_row(message_id)
@@ -247,9 +261,10 @@ class Pipeline:
         force: bool = False,
         send_at: datetime | None = None,
         slot_start: datetime | None = None,
+        by: str | None = None,
     ) -> None:
         with self._lock:
-            self._approve(draft_id, body, force, send_at, slot_start)
+            self._approve(draft_id, body, force, send_at, slot_start, by)
 
     def _approve(
         self,
@@ -258,11 +273,13 @@ class Pipeline:
         force: bool,
         send_at: datetime | None,
         slot_start: datetime | None,
+        by: str | None,
     ) -> None:
         """Keur een concept goed. Met send_at wordt het op dat tijdstip verstuurd, anders meteen.
 
         Bij een afspraak met slot_start wordt daarna de afspraak in de agenda gezet.
         Bij een verzendfout blijft het concept staan en komt de reden in een SendError.
+        by is de ingelogde gebruiker; die komt in het auditlog.
         """
         row = self._store.get_draft(draft_id)
         if row is None or row["status"] not in (WAITING, SCHEDULED):
@@ -276,12 +293,13 @@ class Pipeline:
         start = self._appointment_start(message_id, slot_start)
         if start is not None and self._slot_taken(start):
             raise ValueError("dit tijdstip is inmiddels bezet; kies een ander tijdstip")
+        suffix = f" door {by}" if by else ""
         if send_at is not None and send_at > datetime.now(timezone.utc):
             self._store.schedule_draft(draft_id, text, send_at)
-            self._store.audit(message_id, "ingepland", send_at.isoformat())
+            self._store.audit(message_id, "ingepland", send_at.isoformat() + suffix)
         else:
             self._store.set_draft_status(draft_id, WAITING, body=text)
-            self._send(message_id, msg, draft_id, text, how="door mens goedgekeurd")
+            self._send(message_id, msg, draft_id, text, how="door mens goedgekeurd" + suffix)
         if start is not None:
             self._book(message_id, msg, start)
 
@@ -313,26 +331,28 @@ class Pipeline:
             return
         self._store.audit(message_id, "afspraak ingepland", f"{start.isoformat()} ({event_id})")
 
-    def cancel_schedule(self, draft_id: int) -> None:
+    def cancel_schedule(self, draft_id: int, by: str | None = None) -> None:
         with self._lock:
             row = self._store.get_draft(draft_id)
             if row is None or row["status"] != SCHEDULED:
                 raise LookupError(f"concept {draft_id} is niet ingepland")
             self._store.unschedule_draft(draft_id)
-            self._store.audit(row["message_id"], "planning geannuleerd", f"concept {draft_id}")
+            detail = f"concept {draft_id}" + (f" door {by}" if by else "")
+            self._store.audit(row["message_id"], "planning geannuleerd", detail)
 
-    def reject(self, draft_id: int) -> None:
+    def reject(self, draft_id: int, by: str | None = None) -> None:
         with self._lock:
-            self._reject(draft_id)
+            self._reject(draft_id, by)
 
-    def _reject(self, draft_id: int) -> None:
+    def _reject(self, draft_id: int, by: str | None) -> None:
         row = self._store.get_draft(draft_id)
         if row is None:
             raise LookupError(f"concept {draft_id} bestaat niet")
         if row["status"] not in (WAITING, SCHEDULED):
             raise ValueError(f"concept {draft_id} is al {row['status']}; het kan niet meer worden afgewezen")
         self._store.set_draft_status(draft_id, "afgewezen")
-        self._store.audit(row["message_id"], "afgewezen", f"concept {draft_id}")
+        detail = f"concept {draft_id}" + (f" door {by}" if by else "")
+        self._store.audit(row["message_id"], "afgewezen", detail)
 
     def send_due(self, now: datetime | None = None) -> int:
         """Verstuur ingeplande berichten waarvan het tijdstip is aangebroken. Geeft het aantal verstuurde berichten."""
