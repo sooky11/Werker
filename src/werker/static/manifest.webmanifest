@@ -1,0 +1,14 @@
+{
+  "name": "Werker",
+  "short_name": "Werker",
+  "description": "Inbox voor mail en berichten, met concepten die je zelf goedkeurt.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f4f0",
+  "theme_color": "#b4532a",
+  "lang": "nl",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

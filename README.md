@@ -65,6 +65,33 @@ Open `http://127.0.0.1:8000`. Links staan de categorieën met aantallen, in het 
 
 De pagina gebruikt geen externe bestanden; alles staat in `src/werker/static/index.html`.
 
+## Bureaubladprogramma
+
+Werker draait ook als eigen venster op je computer, zonder browser en zonder server die je zelf moet starten.
+
+```bash
+pip install -e ".[desktop]"
+mkdir -p ~/.werker && echo "ANTHROPIC_API_KEY=..." > ~/.werker/werker.env   # plus overige instellingen
+werker-desktop
+```
+
+Gegevens staan in `~/.werker/` (database en `werker.env`). Het venster luistert alleen op `127.0.0.1`.
+
+Losse, dubbelklikbare versie bouwen (op het systeem waarvoor je bouwt; PyInstaller maakt geen kruisbouw):
+
+```bash
+pip install -e ".[desktop,gmail]" pyinstaller
+pyinstaller --noconfirm --name Werker \
+  --add-data "$PWD/src/werker/static:werker/static" \
+  --collect-submodules werker packaging/werker_desktop.py
+```
+
+Het resultaat staat in `dist/Werker/`. Op Linux heeft pywebview GTK of Qt nodig.
+
+## Online gebruiken
+
+De inbox is ook een installeerbare webapp. Na het inloggen met `WERKER_UI_PASSWORD` kun je hem via de browser op telefoon of computer aan je startscherm zetten ("Installeren" of "Zet op beginscherm"). Zie `docs/deploy.md` voor het online zetten achter HTTPS.
+
 ## Let op
 
 - **WhatsApp**: alleen de officiële WhatsApp Business Cloud API. Vrije tekst kan alleen binnen 24 uur na het laatste bericht van de klant; daarna is een goedgekeurd template nodig, die nog niet is gebouwd.

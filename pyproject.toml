@@ -13,10 +13,12 @@ dependencies = [
 
 [project.optional-dependencies]
 gmail = ["google-api-python-client>=2.0", "google-auth>=2.0"]
+desktop = ["pywebview>=5.0"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]
 werker = "werker.cli:main"
+werker-desktop = "werker.desktop:main"
 
 [build-system]
 requires = ["setuptools>=68"]

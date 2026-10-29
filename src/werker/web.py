@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 
@@ -73,6 +73,14 @@ def create_app(
     @app.get("/", response_class=HTMLResponse, dependencies=[ui_auth])
     def index() -> str:
         return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+    @app.get("/manifest.webmanifest")
+    def manifest() -> FileResponse:
+        return FileResponse(STATIC_DIR / "manifest.webmanifest", media_type="application/manifest+json")
+
+    @app.get("/icon.svg")
+    def icon() -> FileResponse:
+        return FileResponse(STATIC_DIR / "icon.svg", media_type="image/svg+xml")
 
     @app.get("/api/stats", dependencies=[ui_auth])
     def stats() -> dict[str, Any]:
