@@ -60,6 +60,13 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _as_utc(value: datetime) -> datetime:
+    """Naïeve datetimes worden als UTC behandeld."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 class Store:
     def __init__(self, path: str):
         self._lock = threading.RLock()
@@ -149,6 +156,17 @@ class Store:
                from drafts d join messages m on m.id = d.message_id
                where d.status = 'wacht op goedkeuring' order by d.id"""
         ).fetchall()
+
+    @_locked
+    def messages_since(self, since: datetime) -> list[sqlite3.Row]:
+        """Berichten ontvangen op of na `since`, oudste eerst.
+
+        received_at kan verschillende tijdzones bevatten, daarom vergelijken we in Python in UTC.
+        """
+        cutoff = _as_utc(since)
+        rows = self._db.execute("select * from messages").fetchall()
+        selected = [row for row in rows if _as_utc(datetime.fromisoformat(row["received_at"])) >= cutoff]
+        return sorted(selected, key=lambda row: _as_utc(datetime.fromisoformat(row["received_at"])))
 
     @_locked
     def list_messages(

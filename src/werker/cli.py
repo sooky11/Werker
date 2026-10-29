@@ -111,6 +111,17 @@ def cmd_sync(settings: Settings, _: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_digest(settings: Settings, _: argparse.Namespace) -> int:
+    from datetime import datetime, timedelta
+
+    from werker.digest import build_digest
+
+    store = Store(settings.db_path)
+    now = datetime.now().astimezone()
+    print(build_digest(store, now - timedelta(hours=24), now=now))
+    return 0
+
+
 def cmd_drafts(settings: Settings, _: argparse.Namespace) -> int:
     store = Store(settings.db_path)
     for row in store.pending_drafts():
@@ -178,6 +189,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("sync", help="Haal nieuwe mail op en verwerk die.")
     sub.add_parser("drafts", help="Toon concepten die op goedkeuring wachten.")
+    sub.add_parser("digest", help="Toon het dagoverzicht van de afgelopen 24 uur.")
 
     approve = sub.add_parser("approve", help="Keur een concept goed en verstuur het.")
     approve.add_argument("draft_id", type=int)
@@ -196,6 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         "process-eml": cmd_process_eml,
         "sync": cmd_sync,
         "drafts": cmd_drafts,
+        "digest": cmd_digest,
         "approve": cmd_approve,
         "reject": cmd_reject,
         "serve": cmd_serve,
