@@ -55,19 +55,23 @@
   }
 
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.5 var(--font); -webkit-font-smoothing: antialiased;
   }
-  button, input, textarea { font: inherit; color: inherit; }
+  button, input, textarea, select { font: inherit; color: inherit; }
   button { cursor: pointer; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
 
   /* Topbar */
   header {
     position: sticky; top: 0; z-index: 10; height: 60px;
-    display: flex; align-items: center; gap: 16px; padding: 0 20px;
+    display: flex; align-items: center; gap: 12px; padding: 0 20px;
     background: var(--surface); border-bottom: 1px solid var(--border);
   }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; }
@@ -75,7 +79,7 @@
     width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
     display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 700;
   }
-  .search { flex: 1; max-width: 460px; margin-left: auto; position: relative; }
+  .search { flex: 1; max-width: 460px; margin-left: auto; position: relative; min-width: 0; }
   .search input {
     width: 100%; height: 36px; padding: 0 12px 0 34px; border-radius: 999px;
     border: 1px solid var(--border); background: var(--surface-2); outline: none;
@@ -95,7 +99,10 @@
   .btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
   .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
   .btn.danger { color: var(--danger); }
+  .btn.small { height: 30px; padding: 0 10px; font-size: 13px; }
   .btn:disabled { opacity: .5; cursor: default; }
+  .btn.icon-btn { display: inline-flex; align-items: center; gap: 6px; }
+  .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 
   /* Layout */
   .layout {
@@ -108,8 +115,9 @@
   }
   .nav-title {
     font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
-    margin: 8px 10px 6px;
+    margin: 14px 10px 6px;
   }
+  .nav-title:first-child { margin-top: 8px; }
   .nav-item {
     width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; text-align: left;
@@ -148,6 +156,7 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
 
   /* Chips */
   .chip {
@@ -169,14 +178,16 @@
     height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted);
   }
   .empty h3 { color: var(--text); margin: 0 0 6px; font-size: 17px; }
-  .reader h1 { font-size: 24px; line-height: 1.25; letter-spacing: -.02em; margin: 6px 0 14px; font-weight: 650; }
+  .reader h1 { font-size: 24px; line-height: 1.25; letter-spacing: -.02em; margin: 6px 0 14px; font-weight: 650; overflow-wrap: anywhere; }
   .meta { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; color: var(--muted); font-size: 13.5px; }
   .meta strong { color: var(--text); font-weight: 600; }
+  .name { font-weight: 650; }
   .avatar {
     width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
     background: var(--accent-soft); color: var(--accent); font-weight: 650; flex: none;
   }
-  .from { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
+  .from { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; min-width: 0; }
+  .from > div:last-child { min-width: 0; }
   .card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px;
@@ -187,26 +198,86 @@
     white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.65;
     max-width: 68ch; margin: 0;
   }
+  .body.mt { margin-top: 10px; }
   .draft textarea {
     width: 100%; min-height: 180px; resize: vertical; padding: 14px 16px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--surface-2); line-height: 1.6; outline: none;
   }
   .draft textarea:focus { border-color: var(--accent); }
+  .draft textarea[readonly] { color: var(--muted); }
   .notice {
     display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px;
     font-size: 14px; margin-bottom: 12px;
   }
+  .notice > div { min-width: 0; }
   .notice.warn { background: var(--warn-soft); color: var(--warn); }
   .notice.info { background: var(--accent-soft); color: var(--accent); }
   .notice ul { margin: 4px 0 0; padding-left: 18px; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .notice .btn { margin-top: 8px; }
+  .prev-body {
+    white-space: pre-wrap; word-wrap: break-word; color: var(--muted); background: var(--surface-2);
+    border-left: 3px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px;
+    font-size: 14px; line-height: 1.6;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 12px; }
   .actions .spacer { flex: 1; }
-  .sent-note { color: var(--ok); font-weight: 600; }
+  .sent-note { color: var(--ok); font-weight: 600; margin: 0; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .hint.flush { margin-top: 0; }
+  .link { color: var(--accent); text-decoration: none; font-weight: 650; }
+  .link:hover { text-decoration: underline; }
+  .back { display: inline-block; font-size: 14px; margin-bottom: 4px; }
+  .mt { margin-top: 12px; }
+  .card-subtitle { margin: 14px 0 6px; font-size: 14px; font-weight: 650; }
   kbd {
     font: 12px var(--font); padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--surface-2); color: var(--muted);
   }
+
+  /* Activity */
+  details.activity summary {
+    cursor: pointer; font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); font-weight: 650;
+  }
+  .log-list { list-style: none; padding: 0; margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+  .log-list li { padding: 6px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+  .log-list strong { color: var(--text); font-weight: 600; }
+  .log-time { margin-right: 10px; font-variant-numeric: tabular-nums; }
+
+  /* Clients */
+  .ident-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  .tl-item {
+    display: block; width: 100%; text-align: left; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+  }
+  .tl-item:hover { border-color: var(--accent); }
+  .tl-item .item-top { color: var(--muted); }
+  .tl-status { font-size: 12px; color: var(--muted); }
+  .row-inline { display: flex; gap: 8px; align-items: center; }
+  .row-inline .input { flex: 1; min-width: 0; }
+
+  /* Forms */
+  .input {
+    width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface-2); outline: none; line-height: 1.4;
+  }
+  .input:focus { border-color: var(--accent); }
+  .input.pill { width: auto; height: 36px; padding: 0 12px; border-radius: 999px; }
+  textarea.input { min-height: 96px; resize: vertical; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; min-width: 0; }
+  .field > label { font-weight: 600; font-size: 14px; }
+  .check-label { display: flex; gap: 10px; align-items: center; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .check-label input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .settings-section { margin-bottom: 16px; }
+  .section-title { margin: 0 0 4px; font-size: 16px; font-weight: 650; }
+  .section-intro { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .mailbox-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 2px; margin: 0 0 12px;
+    background: var(--surface-2); min-width: 0;
+  }
+  .mailbox-card legend { font-weight: 650; padding: 0 6px; font-size: 14px; }
+  .form-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
 
   /* Toast */
   .toast {
@@ -224,7 +295,7 @@
     .layout { grid-template-columns: 200px minmax(280px, 340px) minmax(0, 1fr); }
   }
   @media (max-width: 860px) {
-    header { padding: 0 12px; gap: 10px; }
+    header { padding: 0 12px; gap: 8px; }
     .brand span.word { display: none; }
     .layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 60px); }
     nav {
@@ -232,13 +303,19 @@
       border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 5;
     }
     .nav-title { display: none; }
-    #nav { display: contents; }
+    #nav, #nav-clients { display: contents; }
     .nav-item { width: auto; white-space: nowrap; border: 1px solid var(--border); background: var(--surface); }
     .list { border-right: 0; overflow: visible; }
     .list-head { position: static; }
     .reader { overflow: visible; padding: 20px 16px 60px; border-top: 1px solid var(--border); }
+    .reader h1 { font-size: 20px; }
     .search { max-width: none; min-width: 0; }
     .hide-small { display: none; }
+    .actions { justify-content: stretch; }
+    .actions .spacer { display: none; }
+  }
+  @media (max-width: 560px) {
+    .grid-2 { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -251,19 +328,24 @@
     <span class="word">Werker</span>
   </div>
   <div class="search">
-    <label for="q" class="sr-only" style="position:absolute;left:-9999px">Zoeken</label>
+    <label for="q" class="sr-only">Zoeken</label>
     <input id="q" type="search" placeholder="Zoeken" autocomplete="off">
   </div>
   <button class="btn primary" id="sync" type="button">Synchroniseer</button>
+  <button class="btn icon-btn" id="settings-btn" type="button" aria-label="Instellingen" aria-pressed="false" title="Instellingen">
+    <span aria-hidden="true">⚙</span><span class="hide-small">Instellingen</span>
+  </button>
 </header>
 
 <div class="layout">
   <nav aria-label="Categorieën">
     <div class="nav-title">Inbox</div>
     <div id="nav"></div>
+    <div class="nav-title">Klanten</div>
+    <div id="nav-clients"></div>
   </nav>
 
-  <section class="list" aria-label="Berichten">
+  <section class="list" aria-label="Lijst">
     <div class="list-head">
       <h2 id="list-title">Wacht op goedkeuring</h2>
       <p id="list-sub">Laden…</p>
@@ -271,9 +353,7 @@
     <div id="items"></div>
   </section>
 
-  <main class="reader" id="reader" aria-live="polite">
-    <div class="empty"><div><h3>Kies een bericht</h3><div>Gebruik <kbd>j</kbd> en <kbd>k</kbd> om door de lijst te bewegen.</div></div></div>
-  </main>
+  <main class="reader" id="reader" aria-live="polite"></main>
 </div>
 
 <div class="toast" id="toast" role="status"></div>
@@ -283,7 +363,8 @@
   "use strict";
 
   const TABS = [
-    { id: "pending", label: "Wacht op goedkeuring", params: { pending: 1 }, color: "wacht" },
+    { id: "pending", label: "Wacht op goedkeuring", params: { pending: 1 } },
+    { id: "ingepland", label: "Ingepland", params: { scheduled: 1 } },
     { id: "all", label: "Alles", params: {} },
     { id: "prijsvraag", label: "Prijsvragen", params: { intent: "prijsvraag" } },
     { id: "afspraak", label: "Afspraken", params: { intent: "afspraak" } },
@@ -298,16 +379,44 @@
     overig: "Overig", nieuwsbrief: "Nieuwsbrief", spam: "Spam",
   };
   const URGENCY_LABELS = { hoog: "Urgent", normaal: "Normaal", laag: "Laag" };
-  const CHANNEL_NAMES = { whatsapp: "WhatsApp", imessage: "iMessage", "mail:gmail": "Gmail", "mail:imap": "Mail" };
+  const CHANNEL_NAMES = { whatsapp: "WhatsApp", imessage: "iMessage", "mail:gmail": "Gmail", mail: "Mail" };
+  const IDENT_LABELS = { email: "E-mail", phone: "Telefoon", telefoon: "Telefoon", whatsapp: "WhatsApp", imessage: "iMessage" };
+  const SECRET_FIELDS = {
+    ANTHROPIC_API_KEY: "s-anthropic",
+    WHATSAPP_TOKEN: "s-watoken",
+    WHATSAPP_APP_SECRET: "s-waapp",
+    WHATSAPP_VERIFY_TOKEN: "s-waverify",
+  };
+  const PLACEHOLDER_SET = "ingesteld — laat leeg om te houden";
+  const PLACEHOLDER_UNSET = "niet ingesteld";
+
   function channelLabel(channel) {
+    if (!channel) return "";
     if (CHANNEL_NAMES[channel]) return CHANNEL_NAMES[channel];
     if (channel.startsWith("mail:")) return channel.slice(5);
     return channel;
   }
+  function identLabel(kind) {
+    return IDENT_LABELS[kind] || kind;
+  }
 
-  const state = { tab: "pending", query: "", messages: [], selected: null, stats: null, loadId: 0 };
+  const state = {
+    listMode: "messages",   // "messages" | "clients"
+    reader: "empty",        // "empty" | "message" | "client" | "settings"
+    tab: "pending",
+    query: "",
+    messages: [],
+    clients: [],
+    selected: null,         // id (als tekst) van het geopende bericht
+    selectedClient: null,   // id (als tekst) van de geopende klant
+    stats: null,
+    loadId: 0,
+    routeId: 0,
+  };
 
   const $ = (sel) => document.querySelector(sel);
+  let uidSeq = 0;
+  const uid = (prefix) => `${prefix}-${++uidSeq}`;
 
   function h(tag, props = {}, ...children) {
     const node = document.createElement(tag);
@@ -333,7 +442,9 @@
     let data = null;
     try { data = await response.json(); } catch (_) { /* leeg antwoord */ }
     if (!response.ok) {
-      const error = new Error((data && data.detail) || response.statusText || "Er ging iets mis");
+      const detail = data && data.detail;
+      const message = typeof detail === "string" ? detail : (response.statusText || "Er ging iets mis");
+      const error = new Error(message);
       error.status = response.status;
       throw error;
     }
@@ -350,6 +461,7 @@
   }
 
   function formatTime(iso) {
+    if (!iso) return "";
     const date = new Date(iso);
     const now = new Date();
     const sameDay = date.toDateString() === now.toDateString();
@@ -359,7 +471,13 @@
   }
 
   function formatFull(iso) {
+    if (!iso) return "";
     return new Date(iso).toLocaleString("nl-NL", { dateStyle: "long", timeStyle: "short" });
+  }
+
+  function localInputValue(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   function initials(name) {
@@ -385,40 +503,86 @@
     return h("span", { class: `chip ${urgency}` }, URGENCY_LABELS[urgency]);
   }
 
+  function channelChip(channel) {
+    if (!channel) return null;
+    return h("span", { class: "chip", text: channelLabel(channel) });
+  }
+
+  function setReader(node) {
+    const reader = $("#reader");
+    reader.replaceChildren(node);
+    reader.scrollTop = 0;
+  }
+
+  function loadingNode(text = "Laden…") {
+    return h("div", { class: "loading", text });
+  }
+
+  function errorNode(title, message) {
+    return h("div", { class: "empty" }, h("div", {}, h("h3", { text: title }), message));
+  }
+
   /* ---------- navigatie ---------- */
 
-  function renderNav() {
-    const counts = (state.stats && state.stats.intents) || {};
-    const pending = state.stats ? state.stats.pending : 0;
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    const nav = $("#nav");
-    nav.replaceChildren(...TABS.map((tab) => {
-      let count = null;
-      if (tab.id === "pending") count = pending;
-      else if (tab.id === "all") count = total;
-      else if (tab.params.intent) count = counts[tab.params.intent] || 0;
-      return h("button", {
-        class: "nav-item",
-        type: "button",
-        "aria-current": tab.id === state.tab ? "true" : "false",
-        onclick: () => { location.hash = tab.id; },
+  function navButton(label, hash, current, count = null, hot = false) {
+    return h("button", {
+      class: "nav-item",
+      type: "button",
+      "aria-current": current ? "true" : "false",
+      onclick: () => {
+        if (location.hash === hash) onRoute();
+        else location.hash = hash;
       },
-        h("span", { text: tab.label }),
-        h("span", { class: `count${tab.id === "pending" && count > 0 ? " hot" : ""}`, text: count ?? "" }),
-      );
-    }));
+    },
+      h("span", { text: label }),
+      count === null ? null : h("span", { class: `count${hot && count > 0 ? " hot" : ""}`, text: count }),
+    );
+  }
+
+  function renderNav() {
+    const stats = state.stats || {};
+    const counts = stats.intents || {};
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    const countFor = (tab) => {
+      if (tab.id === "pending") return stats.pending ?? 0;
+      if (tab.id === "ingepland") return stats.scheduled ?? 0;
+      if (tab.id === "all") return total;
+      return counts[tab.params.intent] || 0;
+    };
+    $("#nav").replaceChildren(...TABS.map((tab) => navButton(
+      tab.label,
+      `#${tab.id}`,
+      state.listMode === "messages" && state.tab === tab.id,
+      countFor(tab),
+      tab.id === "pending",
+    )));
+    $("#nav-clients").replaceChildren(navButton("Alle klanten", "#klanten", state.listMode === "clients"));
+    $("#settings-btn").setAttribute("aria-pressed", String(state.reader === "settings"));
+  }
+
+  function updatePlaceholder() {
+    $("#q").placeholder = state.listMode === "clients" ? "Zoek klanten" : "Zoeken";
   }
 
   function currentTab() {
     return TABS.find((t) => t.id === state.tab) || TABS[0];
   }
 
-  /* ---------- lijst ---------- */
+  function highlightItems() {
+    document.querySelectorAll(".item[data-id]").forEach((el) => {
+      el.setAttribute("aria-selected", el.dataset.id === state.selected ? "true" : "false");
+    });
+    document.querySelectorAll(".item[data-client]").forEach((el) => {
+      el.setAttribute("aria-selected", el.dataset.client === state.selectedClient ? "true" : "false");
+    });
+  }
+
+  /* ---------- berichtenlijst ---------- */
 
   async function loadList() {
     const loadId = ++state.loadId;
     const tab = currentTab();
-    const params = new URLSearchParams({ ...tab.params });
+    const params = new URLSearchParams(tab.params);
     if (state.query) params.set("q", state.query);
     $("#list-title").textContent = tab.label;
     try {
@@ -427,30 +591,32 @@
       state.messages = messages;
       renderList();
     } catch (error) {
+      if (loadId !== state.loadId) return;
       $("#list-sub").textContent = `Kon de lijst niet laden: ${error.message}`;
     }
   }
 
   function renderList() {
-    const container = $("#items");
     const tab = currentTab();
     const n = state.messages.length;
     $("#list-sub").textContent = n === 0
       ? (state.query ? "Geen resultaten" : "Niets hier")
       : `${n} ${n === 1 ? "bericht" : "berichten"}`;
     if (n === 0) {
-      container.replaceChildren(h("div", { class: "loading" },
-        tab.id === "pending" ? "Alles is afgehandeld. Mooi werk." : "Geen berichten in deze categorie."));
+      let empty = "Geen berichten in deze categorie.";
+      if (tab.id === "pending" && !state.query) empty = "Alles is afgehandeld. Mooi werk.";
+      if (tab.id === "ingepland" && !state.query) empty = "Er staan geen antwoorden ingepland.";
+      $("#items").replaceChildren(h("div", { class: "loading", text: empty }));
       return;
     }
-    container.replaceChildren(...state.messages.map((m) => {
-      const selected = m.id === state.selected;
+    $("#items").replaceChildren(...state.messages.map((m) => {
+      const selected = String(m.id) === state.selected;
       return h("button", {
         class: "item",
         type: "button",
         role: "option",
         "aria-selected": selected ? "true" : "false",
-        "data-id": m.id,
+        "data-id": String(m.id),
         onclick: () => { selectMessage(m.id); },
       },
         h("div", { class: "item-top" },
@@ -460,50 +626,104 @@
         ),
         h("div", { class: "item-subject", text: m.subject || "(geen onderwerp)" }),
         h("div", { class: "item-summary", text: m.summary || "" }),
-        h("div", { style: "margin-top:8px;display:flex;gap:6px;flex-wrap:wrap" },
+        h("div", { class: "chip-row" },
           intentChip(m.intent),
+          channelChip(m.channel),
           m.draft_id ? h("span", { class: "chip wacht", text: "Concept klaar" }) : null,
         ),
       );
     }));
   }
 
-  /* ---------- leesvenster ---------- */
+  /* ---------- klantenlijst ---------- */
+
+  async function loadClients() {
+    const loadId = ++state.loadId;
+    const params = new URLSearchParams();
+    if (state.query) params.set("q", state.query);
+    $("#list-title").textContent = "Klanten";
+    try {
+      const clients = await api(`/api/clients?${params}`);
+      if (loadId !== state.loadId) return;
+      state.clients = clients;
+      renderClientList();
+    } catch (error) {
+      if (loadId !== state.loadId) return;
+      $("#list-sub").textContent = `Kon de klanten niet laden: ${error.message}`;
+    }
+  }
+
+  function renderClientList() {
+    const n = state.clients.length;
+    $("#list-sub").textContent = n === 0
+      ? (state.query ? "Geen resultaten" : "Nog geen klanten")
+      : `${n} ${n === 1 ? "klant" : "klanten"}`;
+    if (n === 0) {
+      $("#items").replaceChildren(h("div", {
+        class: "loading",
+        text: state.query ? "Geen klanten gevonden." : "Er zijn nog geen klanten.",
+      }));
+      return;
+    }
+    $("#items").replaceChildren(...state.clients.map((c) => {
+      const selected = String(c.id) === state.selectedClient;
+      const count = c.message_count || 0;
+      return h("button", {
+        class: "item",
+        type: "button",
+        role: "option",
+        "aria-selected": selected ? "true" : "false",
+        "data-client": String(c.id),
+        onclick: () => { location.hash = `klant/${encodeURIComponent(c.id)}`; },
+      },
+        h("div", { class: "item-top" },
+          h("span", { class: "item-sender", text: c.name || "(naamloos)" }),
+          h("span", { text: formatTime(c.last_received) }),
+        ),
+        h("div", { class: "item-subject", text: `${count} ${count === 1 ? "bericht" : "berichten"}` }),
+        h("div", { class: "chip-row" }, (c.channels || []).map((ch) => channelChip(ch))),
+      );
+    }));
+  }
+
+  /* ---------- bericht in het leesvenster ---------- */
 
   async function selectMessage(id) {
-    state.selected = id;
-    document.querySelectorAll(".item").forEach((el) => {
-      el.setAttribute("aria-selected", el.dataset.id === String(id) ? "true" : "false");
-    });
-    const reader = $("#reader");
-    reader.replaceChildren(h("div", { class: "loading" }, "Bericht openen…"));
+    const key = String(id);
+    state.selected = key;
+    state.reader = "message";
+    state.selectedClient = null;
+    highlightItems();
+    setReader(loadingNode("Bericht openen…"));
     try {
-      const message = await api(`/api/messages/${id}`);
-      if (state.selected !== id) return;
+      const message = await api(`/api/messages/${encodeURIComponent(key)}`);
+      if (state.selected !== key || state.reader !== "message") return;
       renderMessage(message);
-      const selectedItem = document.querySelector(`.item[data-id="${id}"]`);
-      if (selectedItem && window.matchMedia("(max-width: 860px)").matches) {
-        selectedItem.scrollIntoView({ block: "nearest" });
+      if (window.matchMedia("(max-width: 860px)").matches) {
+        document.querySelector(`.item[data-id="${CSS.escape(key)}"]`)?.scrollIntoView({ block: "nearest" });
       }
     } catch (error) {
-      reader.replaceChildren(h("div", { class: "empty" }, h("div", {}, h("h3", { text: "Kon het bericht niet openen" }), error.message)));
+      if (state.selected !== key) return;
+      setReader(errorNode("Kon het bericht niet openen", error.message));
     }
   }
 
   function renderMessage(m) {
-    const draft = m.drafts.find((d) => d.status === "wacht op goedkeuring");
-    const sent = m.drafts.find((d) => d.status === "verzonden");
     const name = displaySender(m.sender);
+    const address = (m.sender.match(/<([^>]+)>/) || [])[1] || (m.sender.includes("@") ? m.sender : "");
+    const nameNode = m.client_id
+      ? h("a", { class: "link", href: `#klant/${encodeURIComponent(m.client_id)}`, title: "Open klantgegevens", text: name })
+      : h("span", { class: "name", text: name });
 
     const header = h("div", { class: "card" },
       h("div", { class: "from" },
-        h("div", { class: "avatar", text: initials(name) }),
+        h("div", { class: "avatar", "aria-hidden": "true", text: initials(name) }),
         h("div", {},
-          h("div", { style: "font-weight:650", text: name }),
+          h("div", {}, nameNode),
           h("div", { class: "meta" },
-            h("span", { text: m.sender.includes("<") ? m.sender.replace(/.*</, "<") : "" }),
+            address ? h("span", { text: address }) : null,
             h("span", { text: formatFull(m.received_at) }),
-            h("span", { text: channelLabel(m.channel) }),
+            channelChip(m.channel),
           ),
         ),
       ),
@@ -515,7 +735,7 @@
       ),
     );
 
-    const analysis = m.summary ? h("div", { class: "card" },
+    const summary = m.summary ? h("div", { class: "card" },
       h("h3", { text: "Samenvatting" }),
       h("p", { class: "summary-text", text: m.summary }),
     ) : null;
@@ -525,73 +745,171 @@
       h("p", { class: "body", text: m.body || "(leeg bericht)" }),
     );
 
-    let draftCard;
-    if (draft) {
-      draftCard = renderDraft(m, draft);
-    } else if (sent) {
-      draftCard = h("div", { class: "card" },
-        h("h3", { text: "Antwoord" }),
-        h("p", { class: "sent-note", text: "✓ Verzonden" }),
-        h("p", { class: "body", style: "margin-top:10px", text: sent.body }),
-      );
-    } else {
-      draftCard = h("div", { class: "card" },
-        h("h3", { text: "Antwoord" }),
-        h("p", { class: "hint", style: "margin:0", text: "Voor dit bericht is geen antwoord nodig." }),
-      );
-    }
+    const activity = renderActivity(m);
 
-    $("#reader").replaceChildren(h("div", { class: "reader-inner" }, header, analysis, bodyCard, draftCard));
-    $("#reader").scrollTop = 0;
+    setReader(h("div", { class: "reader-inner" },
+      header, summary, bodyCard, renderDraftCard(m), activity));
   }
 
-  function renderDraft(m, draft) {
-    const textarea = h("textarea", { "aria-label": "Tekst van het antwoord" });
-    textarea.value = draft.body;
-    const warnings = draft.errors.length || draft.reason
-      ? h("div", { class: draft.errors.length ? "notice warn" : "notice info" },
-          h("div", {},
-            draft.errors.length ? h("strong", { text: "Let op: prijscontrole" }) : h("strong", { text: "Toelichting van het model" }),
-            h("ul", {}, ...draft.errors.map((e) => h("li", { text: e })), draft.errors.length === 0 ? h("li", { text: draft.reason }) : null),
-          ),
-        )
-      : null;
-
-    const approve = h("button", { class: "btn primary", type: "button", onclick: () => approveDraft(draft.id, textarea, approve) }, "Goedkeuren en verzenden");
-    const reject = h("button", { class: "btn danger", type: "button", onclick: () => rejectDraft(draft.id, reject) }, "Afwijzen");
-    const reset = h("button", { class: "btn ghost", type: "button", onclick: () => { textarea.value = draft.body; } }, "Herstel concept");
-
-    return h("div", { class: "card draft" },
-      h("h3", { text: "Concept-antwoord" }),
-      warnings,
-      textarea,
-      h("div", { class: "actions" }, reset, h("span", { class: "spacer" }), reject, approve),
-      h("div", { class: "hint" }, "Wijzig de tekst gerust. Het verzenden gebeurt pas na goedkeuring."),
+  function renderDraftCard(m) {
+    const pending = m.drafts.find((d) => d.status === "wacht op goedkeuring");
+    const scheduled = m.drafts.find((d) => d.status === "ingepland");
+    const sent = m.drafts.find((d) => d.status === "verzonden");
+    if (pending) return renderPendingDraft(pending);
+    if (scheduled) return renderScheduledDraft(scheduled);
+    if (sent) {
+      return h("div", { class: "card" },
+        h("h3", { text: "Antwoord" }),
+        h("p", { class: "sent-note", text: "✓ Verzonden" }),
+        h("p", { class: "body mt", text: sent.body }),
+      );
+    }
+    return h("div", { class: "card" },
+      h("h3", { text: "Antwoord" }),
+      h("p", { class: "hint flush", text: "Voor dit bericht is geen antwoord nodig." }),
     );
   }
 
-  async function approveDraft(draftId, textarea, button) {
-    const body = textarea.value.trim();
+  function renderChangeNotice(draft) {
+    const hasPrevious = Boolean(draft.previous_body);
+    const previous = hasPrevious
+      ? h("p", { class: "prev-body", hidden: true, text: draft.previous_body })
+      : null;
+    const toggle = hasPrevious ? h("button", {
+      class: "btn small",
+      type: "button",
+      "aria-expanded": "false",
+      text: "Vorige versie tonen",
+      onclick: () => {
+        const show = previous.hidden;
+        previous.hidden = !show;
+        toggle.textContent = show ? "Vorige versie verbergen" : "Vorige versie tonen";
+        toggle.setAttribute("aria-expanded", String(show));
+      },
+    }) : null;
+    return h("div", {},
+      h("div", { class: "notice info" },
+        h("div", {},
+          h("div", { text: `Bijgewerkt op basis van het nieuwe bericht: ${draft.change_summary}` }),
+          toggle,
+        ),
+      ),
+      previous,
+    );
+  }
+
+  function renderWarnings(draft) {
+    if (!draft.errors.length && !draft.reason) return null;
+    const items = draft.errors.length ? draft.errors : [draft.reason];
+    return h("div", { class: draft.errors.length ? "notice warn" : "notice info" },
+      h("div", {},
+        h("strong", { text: draft.errors.length ? "Let op: prijscontrole" : "Toelichting van het model" }),
+        h("ul", {}, items.map((e) => h("li", { text: e }))),
+      ),
+    );
+  }
+
+  function renderPendingDraft(draft) {
+    const textarea = h("textarea", { "aria-label": "Tekst van het antwoord" });
+    textarea.value = draft.body;
+
+    const select = h("select", { class: "input pill", "aria-label": "Verzendmoment" },
+      h("option", { value: "now", text: "Nu verzenden" }),
+      h("option", { value: "hour", text: "Over 1 uur" }),
+      h("option", { value: "tomorrow", text: "Morgen om 09:00" }),
+      h("option", { value: "custom", text: "Op een tijdstip…" }),
+    );
+    const custom = h("input", {
+      class: "input pill",
+      type: "datetime-local",
+      "aria-label": "Tijdstip voor verzenden",
+      min: localInputValue(new Date()),
+      hidden: true,
+    });
+    const approve = h("button", { class: "btn primary", type: "button", text: "Goedkeuren en verzenden" });
+    const reject = h("button", { class: "btn danger", type: "button", text: "Afwijzen" });
+    const reset = h("button", { class: "btn ghost", type: "button", text: "Herstel concept" });
+
+    const ui = { textarea, select, custom, approve };
+    approve.addEventListener("click", () => approveDraft(draft, ui, false));
+    reject.addEventListener("click", () => rejectDraft(draft.id, reject));
+    reset.addEventListener("click", () => { textarea.value = draft.body; });
+    select.addEventListener("change", () => {
+      approve.textContent = select.value === "now" ? "Goedkeuren en verzenden" : "Inplannen";
+      custom.hidden = select.value !== "custom";
+      if (!custom.hidden) custom.focus();
+    });
+
+    return h("div", { class: "card draft" },
+      h("h3", { text: "Concept-antwoord" }),
+      draft.change_summary ? renderChangeNotice(draft) : null,
+      renderWarnings(draft),
+      textarea,
+      h("div", { class: "actions" }, reset, h("span", { class: "spacer" }), reject, custom, select, approve),
+      h("div", { class: "hint", text: "Wijzig de tekst gerust. Het verzenden gebeurt pas na goedkeuring." }),
+    );
+  }
+
+  function renderScheduledDraft(draft) {
+    const textarea = h("textarea", { readonly: true, "aria-label": "Ingepland antwoord" });
+    textarea.value = draft.body;
+    const when = draft.scheduled_for ? formatFull(draft.scheduled_for) : "onbekend tijdstip";
+    const cancel = h("button", { class: "btn", type: "button", text: "Planning annuleren" });
+    const reject = h("button", { class: "btn danger", type: "button", text: "Afwijzen" });
+    cancel.addEventListener("click", () => cancelSchedule(draft.id, cancel));
+    reject.addEventListener("click", () => rejectDraft(draft.id, reject));
+    return h("div", { class: "card draft" },
+      h("h3", { text: "Concept-antwoord" }),
+      h("div", { class: "notice info" }, h("div", { text: `Ingepland voor ${when}` })),
+      textarea,
+      h("div", { class: "actions" }, h("span", { class: "spacer" }), cancel, reject),
+    );
+  }
+
+  function sendAtFor(choice, customValue) {
+    const now = new Date();
+    if (choice === "now") return null;
+    if (choice === "hour") return new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+    if (choice === "tomorrow") {
+      const d = new Date(now);
+      d.setDate(d.getDate() + 1);
+      d.setHours(9, 0, 0, 0);
+      return d.toISOString();
+    }
+    const when = new Date(customValue);
+    if (!customValue || Number.isNaN(when.getTime())) {
+      toast("Kies een geldig tijdstip.", true);
+      return undefined;
+    }
+    if (when <= now) {
+      toast("Kies een tijdstip in de toekomst.", true);
+      return undefined;
+    }
+    return when.toISOString();
+  }
+
+  async function approveDraft(draft, ui, force) {
+    const body = ui.textarea.value.trim();
     if (!body) { toast("Het antwoord is leeg.", true); return; }
-    button.disabled = true;
+    const sendAt = sendAtFor(ui.select.value, ui.custom.value);
+    if (sendAt === undefined) return;
+    const payload = { body };
+    if (sendAt !== null) payload.send_at = sendAt;
+    if (force) payload.force = true;
+
+    ui.approve.disabled = true;
     try {
-      await api(`/api/drafts/${draftId}/approve`, { method: "POST", body: JSON.stringify({ body }) });
-      toast("Antwoord verzonden");
+      const result = await api(`/api/drafts/${draft.id}/approve`, { method: "POST", body: JSON.stringify(payload) });
+      toast(result.status === "ingepland" ? "Antwoord ingepland" : "Antwoord verzonden");
     } catch (error) {
-      if (error.status === 409 && confirm(`${error.message}\n\nToch verzenden?`)) {
-        try {
-          await api(`/api/drafts/${draftId}/approve`, { method: "POST", body: JSON.stringify({ body, force: true }) });
-          toast("Antwoord verzonden");
-        } catch (second) {
-          toast(second.message, true);
-          button.disabled = false;
-          return;
-        }
+      if (error.status === 409 && !force) {
+        if (confirm(`${error.message}\n\nToch verzenden?`)) return approveDraft(draft, ui, true);
+        toast("Verzenden geannuleerd.");
       } else {
         toast(error.message, true);
-        button.disabled = false;
-        return;
       }
+      ui.approve.disabled = false;
+      return;
     }
     await refresh();
   }
@@ -609,6 +927,433 @@
     }
   }
 
+  async function cancelSchedule(draftId, button) {
+    button.disabled = true;
+    try {
+      await api(`/api/drafts/${draftId}/cancel-schedule`, { method: "POST" });
+      toast("Planning geannuleerd");
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+      button.disabled = false;
+    }
+  }
+
+  function renderActivity(m) {
+    const log = m.log || [];
+    return h("details", { class: "card activity" },
+      h("summary", { text: `Activiteit (${log.length})` }),
+      log.length
+        ? h("ul", { class: "log-list" }, log.map((entry) => h("li", {},
+            h("span", { class: "log-time", text: formatFull(entry.at) }),
+            h("strong", { text: entry.event }),
+            entry.detail ? h("span", { text: ` — ${entry.detail}` }) : null,
+          )))
+        : h("p", { class: "hint flush", text: "Nog geen activiteit." }),
+    );
+  }
+
+  /* ---------- klant ---------- */
+
+  async function openClient(id, routeId) {
+    const key = String(id);
+    state.reader = "client";
+    state.selected = null;
+    state.selectedClient = key;
+    highlightItems();
+    setReader(loadingNode("Klant openen…"));
+    try {
+      const [client, all] = await Promise.all([
+        api(`/api/clients/${encodeURIComponent(key)}`),
+        api("/api/clients"),
+      ]);
+      if (routeId !== state.routeId) return;
+      renderClient(client, all);
+    } catch (error) {
+      if (routeId !== state.routeId) return;
+      setReader(errorNode("Kon de klant niet openen", error.message));
+    }
+  }
+
+  async function patchClient(id, patch, message) {
+    try {
+      await api(`/api/clients/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+      toast(message);
+      return true;
+    } catch (error) {
+      toast(error.message, true);
+      return false;
+    }
+  }
+
+  function renderClient(client, all) {
+    const id = String(client.id);
+    let savedName = client.name || "";
+    let savedNotes = client.notes || "";
+
+    const title = h("h1", { text: savedName || "(naamloos)" });
+
+    const nameId = uid("cname");
+    const nameInput = h("input", { id: nameId, class: "input", type: "text", value: savedName, autocomplete: "off" });
+    const saveName = async () => {
+      const value = nameInput.value.trim();
+      if (!value) {
+        nameInput.value = savedName;
+        toast("De naam mag niet leeg zijn.", true);
+        return;
+      }
+      if (value === savedName) return;
+      if (await patchClient(id, { name: value }, "Naam opgeslagen")) {
+        savedName = value;
+        nameInput.value = value;
+        title.textContent = value;
+        loadClients();
+      }
+    };
+    nameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); saveName(); }
+    });
+
+    const notesId = uid("cnotes");
+    const notesInput = h("textarea", { id: notesId, class: "input", });
+    notesInput.value = savedNotes;
+    const saveNotes = async () => {
+      const value = notesInput.value;
+      if (value === savedNotes) { toast("Geen wijzigingen om op te slaan."); return; }
+      if (await patchClient(id, { notes: value }, "Notities opgeslagen")) {
+        savedNotes = value;
+      }
+    };
+
+    const identifiers = client.identifiers || [];
+    const identCard = h("div", { class: "card" },
+      h("h3", { text: "Identificatoren" }),
+      identifiers.length
+        ? h("ul", { class: "ident-list" }, identifiers.map((i) => h("li", { text: `${identLabel(i.kind)}: ${i.value}` })))
+        : h("p", { class: "hint flush", text: "Nog geen identificatoren bekend." }),
+    );
+
+    const others = all.filter((c) => String(c.id) !== id);
+    const mergeId = uid("merge");
+    const mergeSelect = h("select", { id: mergeId, class: "input" },
+      h("option", { value: "", text: "Kies een klant…" }),
+      others.map((c) => h("option", { value: String(c.id), text: `${c.name || "(naamloos)"} (${c.message_count || 0})` })),
+    );
+    const mergeButton = h("button", { class: "btn", type: "button", text: "Samenvoegen" });
+    mergeButton.addEventListener("click", async () => {
+      const target = others.find((c) => String(c.id) === mergeSelect.value);
+      if (!target) { toast("Kies eerst een klant.", true); return; }
+      if (!confirm(`Alle berichten van "${savedName}" gaan naar "${target.name}". Dit kun je niet ongedaan maken.\n\nDoorgaan?`)) return;
+      mergeButton.disabled = true;
+      try {
+        await api(`/api/clients/${encodeURIComponent(id)}/merge`, { method: "POST", body: JSON.stringify({ into: target.id }) });
+        toast("Klanten samengevoegd");
+        location.hash = `klant/${encodeURIComponent(target.id)}`;
+      } catch (error) {
+        toast(error.message, true);
+        mergeButton.disabled = false;
+      }
+    });
+
+    const messages = [...(client.messages || [])]
+      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
+    const timeline = messages.length
+      ? messages.map((msg) => h("button", {
+          class: "tl-item",
+          type: "button",
+          onclick: () => { location.hash = `bericht/${encodeURIComponent(msg.id)}`; },
+        },
+          h("div", { class: "item-top" },
+            channelChip(msg.channel),
+            h("span", { text: formatTime(msg.received_at) }),
+          ),
+          h("div", { class: "item-subject", text: msg.subject || msg.summary || "(geen onderwerp)" }),
+          h("div", { class: "chip-row" },
+            intentChip(msg.intent),
+            h("span", { class: "tl-status", text: msg.status || "" }),
+          ),
+        ))
+      : [h("p", { class: "hint flush", text: "Nog geen berichten van deze klant." })];
+
+    setReader(h("div", { class: "reader-inner" },
+      h("a", { class: "link back", href: "#klanten", text: "← Alle klanten" }),
+      title,
+      h("div", { class: "card" },
+        h("h3", { text: "Gegevens" }),
+        h("div", { class: "field" },
+          h("label", { for: nameId, text: "Naam" }),
+          h("div", { class: "row-inline" }, nameInput, h("button", { class: "btn", type: "button", text: "Opslaan", onclick: saveName })),
+        ),
+        h("div", { class: "field" },
+          h("label", { for: notesId, text: "Notities" }),
+          notesInput,
+          h("div", { class: "actions" },
+            h("span", { class: "hint flush", text: `${messages.length} ${messages.length === 1 ? "bericht" : "berichten"}` }),
+            h("span", { class: "spacer" }),
+            h("button", { class: "btn", type: "button", text: "Notities opslaan", onclick: saveNotes }),
+          ),
+        ),
+      ),
+      identCard,
+      h("div", { class: "card" },
+        h("h3", { text: "Samenvoegen" }),
+        h("p", { class: "hint flush", text: "Berichten en gegevens van deze klant gaan naar de gekozen klant." }),
+        h("div", { class: "row-inline mt" },
+          h("label", { for: mergeId, class: "sr-only", text: "Samenvoegen met" }),
+          mergeSelect, mergeButton,
+        ),
+      ),
+      h("div", { class: "card" },
+        h("h3", { text: "Berichten" }),
+        timeline,
+      ),
+    ));
+    highlightItems();
+  }
+
+  /* ---------- instellingen ---------- */
+
+  async function openSettings(routeId) {
+    state.reader = "settings";
+    setReader(loadingNode("Instellingen laden…"));
+    try {
+      const data = await api("/api/settings");
+      if (routeId !== state.routeId) return;
+      renderSettings(data);
+    } catch (error) {
+      if (routeId !== state.routeId) return;
+      setReader(errorNode("Kon de instellingen niet laden", error.message));
+    }
+  }
+
+  function settingsSection(title, intro, ...children) {
+    return h("section", { class: "card settings-section" },
+      h("h2", { class: "section-title", text: title }),
+      h("p", { class: "section-intro", text: intro }),
+      ...children,
+    );
+  }
+
+  function field(id, label, control, hint = null) {
+    return h("div", { class: "field" },
+      h("label", { for: id, text: label }),
+      control,
+      hint ? h("div", { class: "hint flush", text: hint }) : null,
+    );
+  }
+
+  function checkField(id, label, checked, hint = null) {
+    return h("div", { class: "field" },
+      h("label", { class: "check-label" },
+        h("input", { id, type: "checkbox", checked: Boolean(checked) }),
+        h("span", { text: label }),
+      ),
+      hint ? h("div", { class: "hint flush", text: hint }) : null,
+    );
+  }
+
+  function mailboxCard(mb = {}) {
+    const legend = h("legend", { text: mb.name || "Nieuwe mailbox" });
+    const textField = (key, label, type = "text", extra = {}) => {
+      const id = uid("mb");
+      return h("div", { class: "field" },
+        h("label", { for: id, text: label }),
+        h("input", { id, class: "input", type, "data-f": key, value: mb[key] ?? "", ...extra }),
+      );
+    };
+    const passwordId = uid("mb-pw");
+    const passwordField = h("div", { class: "field" },
+      h("label", { for: passwordId, text: "Wachtwoord" }),
+      h("input", {
+        id: passwordId,
+        class: "input",
+        type: "password",
+        "data-f": "password",
+        autocomplete: "new-password",
+        placeholder: mb.password_set ? PLACEHOLDER_SET : PLACEHOLDER_UNSET,
+      }),
+    );
+    const card = h("fieldset", { class: "mailbox-card" },
+      legend,
+      h("div", { class: "grid-2" },
+        textField("name", "Naam"),
+        textField("sender", "Afzender (e-mailadres)", "email"),
+        textField("host", "IMAP-server"),
+        textField("port", "IMAP-poort", "number", { min: "1", max: "65535" }),
+        textField("user", "Gebruikersnaam", "text", { autocomplete: "off" }),
+        passwordField,
+        textField("smtp_host", "SMTP-server"),
+        textField("smtp_port", "SMTP-poort", "number", { min: "1", max: "65535" }),
+        textField("folder", "Map (IMAP)"),
+      ),
+      h("div", { class: "actions" },
+        h("button", { class: "btn danger small", type: "button", text: "Verwijderen", onclick: () => card.remove() }),
+      ),
+    );
+    card.querySelector('[data-f="name"]').addEventListener("input", (event) => {
+      legend.textContent = event.target.value.trim() || "Nieuwe mailbox";
+    });
+    return card;
+  }
+
+  function renderSettings(data) {
+    const v = data.values || {};
+    const s = data.secrets_set || {};
+    const secretPlaceholder = (key) => (s[key] ? PLACEHOLDER_SET : PLACEHOLDER_UNSET);
+    const secretInput = (id, key) => h("input", {
+      id,
+      class: "input",
+      type: "password",
+      autocomplete: "new-password",
+      placeholder: secretPlaceholder(key),
+    });
+
+    const errorBox = h("div", { id: "settings-error", class: "notice warn", role: "alert", hidden: true });
+    const mailboxList = h("div", { id: "mailboxes" }, (data.mailboxes || []).map((mb) => mailboxCard(mb)));
+
+    const form = h("form", { class: "reader-inner settings", id: "settings-form", onsubmit: saveSettings },
+      h("h1", { text: "Instellingen" }),
+      h("p", { class: "hint flush", text: "Wijzigingen werken meteen op de server. Een herstart is niet nodig." }),
+      errorBox,
+
+      settingsSection("Automatisch verzenden",
+        "Werker kan antwoorden zelf verzenden als het zeker genoeg is. Al het overige wacht op jouw goedkeuring.",
+        h("div", { class: "notice warn" }, h("div", { text: "Auto-verzenden stuurt zonder je te vragen. Zet het alleen aan voor prijsvragen met gecontroleerde prijs." })),
+        checkField("s-autosend", "Automatisch verzenden aanzetten", v.WERKER_AUTOSEND === "true"),
+        field("s-intents", "Intenties die automatisch mogen verzenden",
+          h("input", { id: "s-intents", class: "input", type: "text", value: v.WERKER_AUTOSEND_INTENTS ?? "" }),
+          "Komma gescheiden, bijvoorbeeld prijsvraag,afspraak."),
+        h("div", { class: "grid-2" },
+          field("s-minconf", "Minimale zekerheid",
+            h("input", { id: "s-minconf", class: "input", type: "number", step: "0.01", min: "0", max: "1", inputmode: "decimal", value: v.WERKER_MIN_CONFIDENCE ?? "" }),
+            "Een waarde tussen 0 en 1. Lager dan dit: eerst jouw goedkeuring."),
+          field("s-maxamount", "Maximaal bedrag (€)",
+            h("input", { id: "s-maxamount", class: "input", type: "number", step: "1", min: "0", inputmode: "decimal", value: v.WERKER_MAX_AUTO_AMOUNT ?? "" }),
+            "Hogere bedragen worden nooit automatisch verzonden."),
+        ),
+      ),
+
+      settingsSection("AI",
+        "De sleutel voor het taalmodel. Na opslaan wordt de sleutel nooit meer getoond.",
+        field("s-anthropic", "Anthropic API-sleutel", secretInput("s-anthropic", "ANTHROPIC_API_KEY"),
+          "Laat leeg om de bestaande sleutel te behouden."),
+      ),
+
+      settingsSection("Eigen adressen en blokkeren",
+        "Berichten van je eigen adressen tellen niet als klantbericht. Afzenders op de blokkeerlijst worden overgeslagen.",
+        field("s-own", "Eigen adressen",
+          h("input", { id: "s-own", class: "input", type: "text", value: v.WERKER_OWN_ADDRESSES ?? "" }),
+          "Komma gescheiden."),
+        field("s-blocklist", "Blokkeerlijst",
+          h("input", { id: "s-blocklist", class: "input", type: "text", value: v.WERKER_BLOCKLIST ?? "" }),
+          "Komma gescheiden."),
+      ),
+
+      settingsSection("Synchronisatie",
+        "Hoe vaak Werker nieuwe berichten ophaalt. Je kunt altijd handmatig synchroniseren.",
+        h("div", { class: "grid-2" },
+          field("s-sync", "Synchroniseer elke (minuten)",
+            h("input", { id: "s-sync", class: "input", type: "number", step: "1", min: "0", inputmode: "numeric", value: v.WERKER_SYNC_MINUTES ?? "" }),
+            "0 betekent uit."),
+          field("s-prices", "Prijslijst (CSV-URL)",
+            h("input", { id: "s-prices", class: "input", type: "url", value: v.WERKER_PRICES_CSV_URL ?? "" }),
+            "Bron voor de prijscontrole bij prijsvragen."),
+        ),
+      ),
+
+      settingsSection("Kanalen",
+        "Welke berichtenbronnen Werker gebruikt. Gevoelige velden worden nooit getoond.",
+        checkField("s-imessage", "iMessage gebruiken", v.WERKER_IMESSAGE === "true", "Alleen op een Mac."),
+        h("h3", { class: "card-subtitle", text: "WhatsApp" }),
+        field("s-waid", "Telefoonnummer-ID (WHATSAPP_PHONE_NUMBER_ID)",
+          h("input", { id: "s-waid", class: "input", type: "text", value: v.WHATSAPP_PHONE_NUMBER_ID ?? "" })),
+        field("s-watoken", "Toegangstoken (WHATSAPP_TOKEN)", secretInput("s-watoken", "WHATSAPP_TOKEN"),
+          "Laat leeg om het bestaande token te behouden."),
+        field("s-waapp", "App-geheim (WHATSAPP_APP_SECRET)", secretInput("s-waapp", "WHATSAPP_APP_SECRET"),
+          "Laat leeg om het bestaande geheim te behouden."),
+        field("s-waverify", "Verificatietoken (WHATSAPP_VERIFY_TOKEN)", secretInput("s-waverify", "WHATSAPP_VERIFY_TOKEN"),
+          "Laat leeg om het bestaande token te behouden."),
+      ),
+
+      settingsSection("Mailboxen",
+        "Elke mailbox wordt ingelezen via IMAP en beantwoord via SMTP. Laat het wachtwoord leeg om het bestaande te behouden.",
+        mailboxList,
+        h("div", { class: "actions" },
+          h("button", { class: "btn", type: "button", text: "Mailbox toevoegen",
+            onclick: () => mailboxList.append(mailboxCard({})) }),
+        ),
+      ),
+
+      h("div", { class: "form-footer" },
+        h("button", { class: "btn primary", type: "submit", text: "Opslaan" }),
+      ),
+    );
+
+    setReader(form);
+    state.reader = "settings";
+  }
+
+  function readSettings() {
+    const val = (id) => document.getElementById(id).value.trim();
+    const checked = (id) => document.getElementById(id).checked;
+    const values = {
+      WERKER_AUTOSEND: checked("s-autosend") ? "true" : "false",
+      WERKER_AUTOSEND_INTENTS: val("s-intents"),
+      WERKER_MIN_CONFIDENCE: val("s-minconf"),
+      WERKER_MAX_AUTO_AMOUNT: val("s-maxamount"),
+      WERKER_OWN_ADDRESSES: val("s-own"),
+      WERKER_BLOCKLIST: val("s-blocklist"),
+      WERKER_SYNC_MINUTES: val("s-sync"),
+      WERKER_PRICES_CSV_URL: val("s-prices"),
+      WERKER_IMESSAGE: checked("s-imessage") ? "true" : "false",
+      WHATSAPP_PHONE_NUMBER_ID: val("s-waid"),
+    };
+    // Geheimen: alleen meesturen als er iets is ingetypt.
+    const secrets = {};
+    for (const [key, id] of Object.entries(SECRET_FIELDS)) {
+      const typed = document.getElementById(id).value;
+      if (typed) secrets[key] = typed;
+    }
+    const mailboxes = [...document.querySelectorAll(".mailbox-card")].map((card) => {
+      const input = (key) => card.querySelector(`[data-f="${key}"]`);
+      const text = (key) => input(key).value.trim();
+      const port = (key) => (text(key) === "" ? null : Number(text(key)));
+      const mailbox = {
+        name: text("name"),
+        host: text("host"),
+        port: port("port"),
+        user: text("user"),
+        smtp_host: text("smtp_host"),
+        smtp_port: port("smtp_port"),
+        sender: text("sender"),
+        folder: text("folder"),
+      };
+      const password = input("password").value;
+      if (password) mailbox.password = password;
+      return mailbox;
+    });
+    return { values, secrets, mailboxes };
+  }
+
+  async function saveSettings(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    const errorBox = $("#settings-error");
+    errorBox.hidden = true;
+    submit.disabled = true;
+    try {
+      const data = await api("/api/settings", { method: "PUT", body: JSON.stringify(readSettings()) });
+      renderSettings(data);
+      toast("Instellingen opgeslagen");
+    } catch (error) {
+      errorBox.textContent = `Niet opgeslagen: ${error.message}`;
+      errorBox.hidden = false;
+      toast(error.message, true);
+      submit.disabled = false;
+    }
+  }
+
   /* ---------- data verversen ---------- */
 
   async function loadStats() {
@@ -619,56 +1364,101 @@
   async function refresh() {
     try {
       await loadStats();
-      await loadList();
-      if (state.selected !== null && state.messages.some((m) => m.id === state.selected)) {
-        await selectMessage(state.selected);
-      }
+      if (state.listMode === "clients") await loadClients();
+      else await loadList();
+      if (state.reader === "message" && state.selected !== null) await selectMessage(state.selected);
     } catch (error) {
       toast(error.message, true);
     }
   }
 
-  function currentTabFromHash() {
-    const id = location.hash.replace("#", "");
-    return TABS.some((t) => t.id === id) ? id : "pending";
+  /* ---------- routing (hash) ---------- */
+
+  function parseRoute() {
+    const raw = location.hash.replace(/^#/, "");
+    const slash = raw.indexOf("/");
+    const head = slash === -1 ? raw : raw.slice(0, slash);
+    let arg = slash === -1 ? "" : raw.slice(slash + 1);
+    try { arg = decodeURIComponent(arg); } catch (_) { /* laat ruwe waarde staan */ }
+    if (head === "klanten") return { view: "clients" };
+    if (head === "klant" && arg) return { view: "client", id: arg };
+    if (head === "bericht" && arg) return { view: "message", id: arg };
+    if (head === "instellingen") return { view: "settings" };
+    const tab = TABS.find((t) => t.id === head);
+    return { view: "messages", tab: tab ? tab.id : "pending" };
   }
 
-  async function onTabChange() {
-    state.tab = currentTabFromHash();
-    state.selected = null;
-    $("#reader").replaceChildren(h("div", { class: "empty" }, h("div", {}, h("h3", { text: "Kies een bericht" }), "Gebruik j en k om door de lijst te bewegen.")));
-    renderNav();
-    await loadList();
+  function showEmptyReader() {
+    state.reader = "empty";
+    const hint = state.listMode === "clients"
+      ? "Kies een klant uit de lijst."
+      : h("div", {}, "Gebruik ", h("kbd", { text: "j" }), " en ", h("kbd", { text: "k" }), " om door de lijst te bewegen.");
+    setReader(h("div", { class: "empty" }, h("div", {}, h("h3", { text: state.listMode === "clients" ? "Geen klant geopend" : "Kies een bericht" }), hint)));
+  }
+
+  async function onRoute() {
+    const route = parseRoute();
+    const routeId = ++state.routeId;
+
+    if (route.view === "messages") {
+      Object.assign(state, { listMode: "messages", tab: route.tab, selected: null, selectedClient: null });
+      renderNav(); updatePlaceholder();
+      showEmptyReader();
+      await loadList();
+    } else if (route.view === "clients") {
+      Object.assign(state, { listMode: "clients", selected: null, selectedClient: null });
+      renderNav(); updatePlaceholder();
+      showEmptyReader();
+      await loadClients();
+    } else if (route.view === "client") {
+      Object.assign(state, { listMode: "clients", selected: null, selectedClient: String(route.id) });
+      renderNav(); updatePlaceholder();
+      await Promise.all([loadClients(), openClient(route.id, routeId)]);
+    } else if (route.view === "message") {
+      Object.assign(state, { listMode: "messages", selectedClient: null });
+      renderNav(); updatePlaceholder();
+      await Promise.all([loadList(), selectMessage(route.id)]);
+    } else if (route.view === "settings") {
+      Object.assign(state, { selected: null, selectedClient: null });
+      renderNav(); updatePlaceholder();
+      await Promise.all([
+        state.listMode === "clients" ? loadClients() : loadList(),
+        openSettings(routeId),
+      ]);
+    }
   }
 
   /* ---------- toetsenbord ---------- */
 
   function moveSelection(step) {
     if (!state.messages.length) return;
-    const index = state.messages.findIndex((m) => m.id === state.selected);
+    const index = state.messages.findIndex((m) => String(m.id) === state.selected);
     const next = state.messages[Math.min(Math.max(index + step, 0), state.messages.length - 1)];
     if (next) {
       selectMessage(next.id);
-      document.querySelector(`.item[data-id="${next.id}"]`)?.scrollIntoView({ block: "nearest" });
+      document.querySelector(`.item[data-id="${CSS.escape(String(next.id))}"]`)?.scrollIntoView({ block: "nearest" });
     }
   }
 
   document.addEventListener("keydown", (event) => {
-    const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || "");
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
     if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "/") { event.preventDefault(); $("#q").focus(); return; }
+    if (state.listMode !== "messages") return;
     if (event.key === "j") moveSelection(1);
     if (event.key === "k") moveSelection(-1);
-    if (event.key === "/") { event.preventDefault(); $("#q").focus(); }
   });
 
   /* ---------- zoeken & sync ---------- */
 
   let searchTimer;
   $("#q").addEventListener("input", (event) => {
+    const value = event.target.value.trim();
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      state.query = event.target.value.trim();
-      loadList();
+      state.query = value;
+      if (state.listMode === "clients") loadClients();
+      else loadList();
     }, 250);
   });
 
@@ -688,12 +1478,17 @@
     }
   });
 
-  window.addEventListener("hashchange", onTabChange);
+  $("#settings-btn").addEventListener("click", () => {
+    if (location.hash === "#instellingen") onRoute();
+    else location.hash = "instellingen";
+  });
+
+  window.addEventListener("hashchange", onRoute);
   setInterval(() => { loadStats().catch(() => {}); }, 60000);
 
-  state.tab = currentTabFromHash();
-  if (!location.hash) location.hash = state.tab;
-  loadStats().then(loadList).catch((error) => toast(error.message, true));
+  if (!location.hash) history.replaceState(null, "", "#pending");
+  loadStats().catch(() => {});
+  onRoute();
 })();
 </script>
 </body>
