@@ -39,6 +39,7 @@ pytest
 | `WERKER_GMAIL_TOKEN` | Pad naar een OAuth-token voor Gmail (scopes: gmail.readonly, gmail.modify, gmail.send). |
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp Business Cloud API. |
 | `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | Voor webhook-verificatie. |
+| `WERKER_UI_PASSWORD` | Wachtwoord voor de inbox (HTTP-basisauthenticatie, gebruikersnaam is wat je wilt). Verplicht als je op een netwerk-interface luistert. |
 
 ## Gebruik
 
@@ -50,8 +51,19 @@ werker drafts                       # concepten die op goedkeuring wachten
 werker approve 3                    # keur concept 3 goed en verstuur het
 werker approve 3 --text aangepast.txt
 werker reject 3
-werker serve --port 8000            # WhatsApp-webhook (achter HTTPS, URL instellen bij Meta)
+werker serve --port 8000            # inbox op http://127.0.0.1:8000 + WhatsApp-webhook
 ```
+
+## De inbox
+
+Open `http://127.0.0.1:8000`. Links staan de categorieën met aantallen, in het midden de lijst, rechts het bericht met de samenvatting en het concept-antwoord.
+
+- Wijzig het concept gerust; de tekst die je goedkeurt is de tekst die verzonden wordt.
+- Bij een prijs die niet op de lijst staat, krijg je een waarschuwing en moet je expliciet bevestigen.
+- Sneltoetsen: `j` / `k` om door de lijst te bewegen, `/` om te zoeken.
+- Synchroniseer haalt nieuwe mail op en verwerkt die direct.
+
+De pagina gebruikt geen externe bestanden; alles staat in `src/werker/static/index.html`.
 
 ## Let op
 
@@ -59,4 +71,4 @@ werker serve --port 8000            # WhatsApp-webhook (achter HTTPS, URL instel
 - **Gmail**: het OAuth-token maak je eenmalig met `google-auth-oauthlib`. Voor productiegebruik vraagt Google verificatie van de app aan.
 - **Privacy**: berichttekst gaat naar de Anthropic API. Neem dat op in je privacyverklaring.
 - **Hosting**: de service moet op een vaste host draaien om webhooks te ontvangen. Prijzen worden per run ververst; plan `werker sync` en de prijsverversing als cron-taak (bijvoorbeeld elk uur).
-- Nog niet gebouwd: de inbox-webpagina en de dagelijkse digest (zie het plan).
+- Nog niet gebouwd: de dagelijkse digest en WhatsApp-templates voor buiten het 24-uursvenster.

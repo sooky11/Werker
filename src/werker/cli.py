@@ -4,6 +4,7 @@ import argparse
 import dataclasses
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Callable, Mapping
 
@@ -12,11 +13,14 @@ from werker.config import Settings
 from werker.connectors.base import Connector
 from werker.connectors.mail import IMAPConnector, parse_email
 from werker.models import Message
-from werker.pipeline import Pipeline
+from werker.pipeline import Pipeline, SendError
 from werker.policy import PolicyConfig
 from werker.prices import PriceBook, fetch_sheet_csv, format_amount, load_csv, load_yaml
 from werker.reply import Replier
 from werker.store import Store
+
+
+LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 def build_connectors(env: Mapping[str, str]) -> dict[str, Connector]:
@@ -101,12 +105,9 @@ def cmd_process_eml(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_sync(settings: Settings, _: argparse.Namespace) -> int:
-    connectors = build_connectors(os.environ)
     store = Store(settings.db_path)
-    pipeline = build_pipeline(settings, store, connectors)
-    for connector in connectors.values():
-        for msg in connector.fetch_new():
-            pipeline.process(msg)
+    pipeline = build_pipeline(settings, store, build_connectors(os.environ))
+    print(f"{pipeline.sync()} nieuwe berichten verwerkt")
     return 0
 
 
@@ -125,7 +126,11 @@ def cmd_approve(settings: Settings, args: argparse.Namespace) -> int:
     store = Store(settings.db_path)
     pipeline = build_pipeline(settings, store, build_connectors(os.environ))
     body = Path(args.text).read_text(encoding="utf-8") if args.text else None
-    pipeline.approve(args.draft_id, body=body, force=args.force)
+    try:
+        pipeline.approve(args.draft_id, body=body, force=args.force)
+    except (LookupError, ValueError, SendError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     print(f"concept {args.draft_id} verzonden")
     return 0
 
@@ -142,14 +147,22 @@ def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
 
     from werker.web import create_app
 
+    env = os.environ
+    ui_password = env.get("WERKER_UI_PASSWORD", "")
+    if args.host not in LOCAL_HOSTS and not ui_password:
+        print("Weiger te starten: zet WERKER_UI_PASSWORD voordat je op een netwerk-interface luistert.", file=sys.stderr)
+        return 1
     store = Store(settings.db_path)
-    pipeline = build_pipeline(settings, store, build_connectors(os.environ))
+    pipeline = build_pipeline(settings, store, build_connectors(env))
     app = create_app(
+        store,
         pipeline,
-        app_secret=os.environ["WHATSAPP_APP_SECRET"],
-        verify_token=os.environ["WHATSAPP_VERIFY_TOKEN"],
+        app_secret=env.get("WHATSAPP_APP_SECRET", ""),
+        verify_token=env.get("WHATSAPP_VERIFY_TOKEN", ""),
+        ui_password=ui_password,
     )
-    uvicorn.run(app, host=args.host, port=args.port)
+    print(f"Werker draait op http://{args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
 
 
@@ -174,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     reject = sub.add_parser("reject", help="Wijs een concept af.")
     reject.add_argument("draft_id", type=int)
 
-    serve = sub.add_parser("serve", help="Start de WhatsApp-webhook.")
+    serve = sub.add_parser("serve", help="Start de inbox-webpagina en de WhatsApp-webhook.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
 

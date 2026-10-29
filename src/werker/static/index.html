@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Werker · Inbox</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%23b4532a'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f4f0;
+    --surface: #ffffff;
+    --surface-2: #faf8f5;
+    --border: #e6e1d8;
+    --text: #1f1c18;
+    --muted: #6f6a60;
+    --accent: #b4532a;
+    --accent-soft: #f7e6dd;
+    --ok: #2f7d4f;
+    --ok-soft: #e1f2e8;
+    --warn: #a86a00;
+    --warn-soft: #fbefd6;
+    --danger: #b3261e;
+    --danger-soft: #f9dedc;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(31, 28, 24, .06), 0 4px 16px rgba(31, 28, 24, .04);
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14120f;
+      --surface: #1c1915;
+      --surface-2: #221e19;
+      --border: #332d26;
+      --text: #f2ede6;
+      --muted: #a39b8f;
+      --accent: #e8805a;
+      --accent-soft: #3a261d;
+      --ok: #6cc08b;
+      --ok-soft: #1d3327;
+      --warn: #e6b04f;
+      --warn-soft: #3a2f16;
+      --danger: #f2877f;
+      --danger-soft: #3d1f1d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14120f; --surface: #1c1915; --surface-2: #221e19; --border: #332d26;
+    --text: #f2ede6; --muted: #a39b8f; --accent: #e8805a; --accent-soft: #3a261d;
+    --ok: #6cc08b; --ok-soft: #1d3327; --warn: #e6b04f; --warn-soft: #3a2f16;
+    --danger: #f2877f; --danger-soft: #3d1f1d; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 var(--font); -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Topbar */
+  header {
+    position: sticky; top: 0; z-index: 10; height: 60px;
+    display: flex; align-items: center; gap: 16px; padding: 0 20px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
+    display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 700;
+  }
+  .search { flex: 1; max-width: 460px; margin-left: auto; position: relative; }
+  .search input {
+    width: 100%; height: 36px; padding: 0 12px 0 34px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface-2); outline: none;
+  }
+  .search input:focus { border-color: var(--accent); }
+  .search::before {
+    content: ""; position: absolute; left: 13px; top: 11px; width: 12px; height: 12px;
+    border: 2px solid var(--muted); border-radius: 50%;
+  }
+  .btn {
+    height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); font-weight: 550; white-space: nowrap;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  .btn.danger { color: var(--danger); }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  /* Layout */
+  .layout {
+    display: grid; grid-template-columns: 220px minmax(300px, 380px) minmax(0, 1fr);
+    height: calc(100vh - 60px);
+  }
+  nav {
+    border-right: 1px solid var(--border); padding: 16px 12px; overflow-y: auto;
+    background: var(--surface);
+  }
+  .nav-title {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    margin: 8px 10px 6px;
+  }
+  .nav-item {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; text-align: left;
+  }
+  .nav-item:hover { background: var(--surface-2); }
+  .nav-item[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .count {
+    min-width: 22px; padding: 0 7px; border-radius: 999px; font-size: 12px; text-align: center;
+    background: var(--surface-2); color: var(--muted); line-height: 20px;
+  }
+  .nav-item[aria-current="true"] .count { background: var(--surface); color: var(--accent); }
+  .count.hot { background: var(--accent); color: #fff; }
+
+  /* List */
+  .list { border-right: 1px solid var(--border); overflow-y: auto; background: var(--bg); }
+  .list-head {
+    position: sticky; top: 0; padding: 14px 16px 10px; background: var(--bg);
+    border-bottom: 1px solid var(--border); z-index: 1;
+  }
+  .list-head h2 { margin: 0; font-size: 16px; }
+  .list-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .item {
+    display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--border);
+    background: transparent; padding: 14px 16px; position: relative;
+  }
+  .item:hover { background: var(--surface); }
+  .item[aria-selected="true"] { background: var(--surface); }
+  .item[aria-selected="true"]::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent);
+  }
+  .item-top { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .item-sender { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
+  .item-subject { margin-top: 2px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-summary {
+    margin-top: 2px; color: var(--muted); font-size: 13px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+
+  /* Chips */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2);
+    color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.prijsvraag { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+  .chip.afspraak { color: #3b6fb6; background: #e3edf9; border-color: transparent; }
+  .chip.klacht, .chip.hoog { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+  .chip.factuur { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+  .chip.wacht { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+
+  /* Reading pane */
+  .reader { overflow-y: auto; padding: 28px clamp(16px, 4vw, 48px) 60px; }
+  .reader-inner { max-width: 760px; margin: 0 auto; }
+  .empty {
+    height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted);
+  }
+  .empty h3 { color: var(--text); margin: 0 0 6px; font-size: 17px; }
+  .reader h1 { font-size: 24px; line-height: 1.25; letter-spacing: -.02em; margin: 6px 0 14px; font-weight: 650; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; color: var(--muted); font-size: 13.5px; }
+  .meta strong { color: var(--text); font-weight: 600; }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent); font-weight: 650; flex: none;
+  }
+  .from { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
+  .summary-text { margin: 0; font-size: 15px; }
+  .body {
+    white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.65;
+    max-width: 68ch; margin: 0;
+  }
+  .draft textarea {
+    width: 100%; min-height: 180px; resize: vertical; padding: 14px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface-2); line-height: 1.6; outline: none;
+  }
+  .draft textarea:focus { border-color: var(--accent); }
+  .notice {
+    display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px;
+    font-size: 14px; margin-bottom: 12px;
+  }
+  .notice.warn { background: var(--warn-soft); color: var(--warn); }
+  .notice.info { background: var(--accent-soft); color: var(--accent); }
+  .notice ul { margin: 4px 0 0; padding-left: 18px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .actions .spacer { flex: 1; }
+  .sent-note { color: var(--ok); font-weight: 600; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  kbd {
+    font: 12px var(--font); padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--muted);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: .25s; max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--danger); color: #fff; }
+
+  .loading { color: var(--muted); padding: 24px; font-size: 14px; }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 200px minmax(280px, 340px) minmax(0, 1fr); }
+  }
+  @media (max-width: 860px) {
+    header { padding: 0 12px; gap: 10px; }
+    .brand span.word { display: none; }
+    .layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 60px); }
+    nav {
+      display: flex; gap: 6px; overflow-x: auto; padding: 10px 12px; border-right: 0;
+      border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 5;
+    }
+    .nav-title { display: none; }
+    #nav { display: contents; }
+    .nav-item { width: auto; white-space: nowrap; border: 1px solid var(--border); background: var(--surface); }
+    .list { border-right: 0; overflow: visible; }
+    .list-head { position: static; }
+    .reader { overflow: visible; padding: 20px 16px 60px; border-top: 1px solid var(--border); }
+    .search { max-width: none; min-width: 0; }
+    .hide-small { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">W</div>
+    <span class="word">Werker</span>
+  </div>
+  <div class="search">
+    <label for="q" class="sr-only" style="position:absolute;left:-9999px">Zoeken</label>
+    <input id="q" type="search" placeholder="Zoeken" autocomplete="off">
+  </div>
+  <button class="btn primary" id="sync" type="button">Synchroniseer</button>
+</header>
+
+<div class="layout">
+  <nav aria-label="Categorieën">
+    <div class="nav-title">Inbox</div>
+    <div id="nav"></div>
+  </nav>
+
+  <section class="list" aria-label="Berichten">
+    <div class="list-head">
+      <h2 id="list-title">Wacht op goedkeuring</h2>
+      <p id="list-sub">Laden…</p>
+    </div>
+    <div id="items"></div>
+  </section>
+
+  <main class="reader" id="reader" aria-live="polite">
+    <div class="empty"><div><h3>Kies een bericht</h3><div>Gebruik <kbd>j</kbd> en <kbd>k</kbd> om door de lijst te bewegen.</div></div></div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const TABS = [
+    { id: "pending", label: "Wacht op goedkeuring", params: { pending: 1 }, color: "wacht" },
+    { id: "all", label: "Alles", params: {} },
+    { id: "prijsvraag", label: "Prijsvragen", params: { intent: "prijsvraag" } },
+    { id: "afspraak", label: "Afspraken", params: { intent: "afspraak" } },
+    { id: "klacht", label: "Klachten", params: { intent: "klacht" } },
+    { id: "factuur", label: "Facturen", params: { intent: "factuur" } },
+    { id: "overig", label: "Overig", params: { intent: "overig" } },
+    { id: "nieuwsbrief", label: "Nieuwsbrieven", params: { intent: "nieuwsbrief" } },
+    { id: "spam", label: "Spam", params: { intent: "spam" } },
+  ];
+  const INTENT_LABELS = {
+    prijsvraag: "Prijsvraag", afspraak: "Afspraak", klacht: "Klacht", factuur: "Factuur",
+    overig: "Overig", nieuwsbrief: "Nieuwsbrief", spam: "Spam",
+  };
+  const URGENCY_LABELS = { hoog: "Urgent", normaal: "Normaal", laag: "Laag" };
+  const CHANNEL_LABELS = { mail: "Mail", whatsapp: "WhatsApp" };
+
+  const state = { tab: "pending", query: "", messages: [], selected: null, stats: null, loadId: 0 };
+
+  const $ = (sel) => document.querySelector(sel);
+
+  function h(tag, props = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(props)) {
+      if (value === undefined || value === null || value === false) continue;
+      if (key === "class") node.className = value;
+      else if (key === "text") node.textContent = value;
+      else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+      else node.setAttribute(key, value === true ? "" : value);
+    }
+    for (const child of children.flat()) {
+      if (child === null || child === undefined || child === false) continue;
+      node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    }
+    return node;
+  }
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+    let data = null;
+    try { data = await response.json(); } catch (_) { /* leeg antwoord */ }
+    if (!response.ok) {
+      const error = new Error((data && data.detail) || response.statusText || "Er ging iets mis");
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  }
+
+  function toast(text, isError = false) {
+    const node = $("#toast");
+    node.textContent = text;
+    node.classList.toggle("error", isError);
+    node.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => node.classList.remove("show"), 3200);
+  }
+
+  function formatTime(iso) {
+    const date = new Date(iso);
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    return sameDay
+      ? date.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })
+      : date.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  }
+
+  function formatFull(iso) {
+    return new Date(iso).toLocaleString("nl-NL", { dateStyle: "long", timeStyle: "short" });
+  }
+
+  function initials(name) {
+    const clean = name.replace(/<.*>/, "").replace(/[^\p{L}\s]/gu, " ").trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  }
+
+  function displaySender(sender) {
+    const match = sender.match(/^(.*?)\s*<([^>]+)>$/);
+    if (match && match[1].trim()) return match[1].trim();
+    return match ? match[2] : sender;
+  }
+
+  function intentChip(intent) {
+    if (!intent) return null;
+    return h("span", { class: `chip ${intent}` }, INTENT_LABELS[intent] || intent);
+  }
+
+  function urgencyChip(urgency) {
+    if (!urgency || urgency === "laag" || urgency === "normaal") return null;
+    return h("span", { class: `chip ${urgency}` }, URGENCY_LABELS[urgency]);
+  }
+
+  /* ---------- navigatie ---------- */
+
+  function renderNav() {
+    const counts = (state.stats && state.stats.intents) || {};
+    const pending = state.stats ? state.stats.pending : 0;
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    const nav = $("#nav");
+    nav.replaceChildren(...TABS.map((tab) => {
+      let count = null;
+      if (tab.id === "pending") count = pending;
+      else if (tab.id === "all") count = total;
+      else if (tab.params.intent) count = counts[tab.params.intent] || 0;
+      return h("button", {
+        class: "nav-item",
+        type: "button",
+        "aria-current": tab.id === state.tab ? "true" : "false",
+        onclick: () => { location.hash = tab.id; },
+      },
+        h("span", { text: tab.label }),
+        h("span", { class: `count${tab.id === "pending" && count > 0 ? " hot" : ""}`, text: count ?? "" }),
+      );
+    }));
+  }
+
+  function currentTab() {
+    return TABS.find((t) => t.id === state.tab) || TABS[0];
+  }
+
+  /* ---------- lijst ---------- */
+
+  async function loadList() {
+    const loadId = ++state.loadId;
+    const tab = currentTab();
+    const params = new URLSearchParams({ ...tab.params });
+    if (state.query) params.set("q", state.query);
+    $("#list-title").textContent = tab.label;
+    try {
+      const messages = await api(`/api/messages?${params}`);
+      if (loadId !== state.loadId) return;
+      state.messages = messages;
+      renderList();
+    } catch (error) {
+      $("#list-sub").textContent = `Kon de lijst niet laden: ${error.message}`;
+    }
+  }
+
+  function renderList() {
+    const container = $("#items");
+    const tab = currentTab();
+    const n = state.messages.length;
+    $("#list-sub").textContent = n === 0
+      ? (state.query ? "Geen resultaten" : "Niets hier")
+      : `${n} ${n === 1 ? "bericht" : "berichten"}`;
+    if (n === 0) {
+      container.replaceChildren(h("div", { class: "loading" },
+        tab.id === "pending" ? "Alles is afgehandeld. Mooi werk." : "Geen berichten in deze categorie."));
+      return;
+    }
+    container.replaceChildren(...state.messages.map((m) => {
+      const selected = m.id === state.selected;
+      return h("button", {
+        class: "item",
+        type: "button",
+        role: "option",
+        "aria-selected": selected ? "true" : "false",
+        "data-id": m.id,
+        onclick: () => { selectMessage(m.id); },
+      },
+        h("div", { class: "item-top" },
+          m.draft_id ? h("span", { class: "unread-dot", title: "Concept wacht op goedkeuring" }) : null,
+          h("span", { class: "item-sender", text: displaySender(m.sender) }),
+          h("span", { text: formatTime(m.received_at) }),
+        ),
+        h("div", { class: "item-subject", text: m.subject || "(geen onderwerp)" }),
+        h("div", { class: "item-summary", text: m.summary || "" }),
+        h("div", { style: "margin-top:8px;display:flex;gap:6px;flex-wrap:wrap" },
+          intentChip(m.intent),
+          m.draft_id ? h("span", { class: "chip wacht", text: "Concept klaar" }) : null,
+        ),
+      );
+    }));
+  }
+
+  /* ---------- leesvenster ---------- */
+
+  async function selectMessage(id) {
+    state.selected = id;
+    document.querySelectorAll(".item").forEach((el) => {
+      el.setAttribute("aria-selected", el.dataset.id === String(id) ? "true" : "false");
+    });
+    const reader = $("#reader");
+    reader.replaceChildren(h("div", { class: "loading" }, "Bericht openen…"));
+    try {
+      const message = await api(`/api/messages/${id}`);
+      if (state.selected !== id) return;
+      renderMessage(message);
+      const selectedItem = document.querySelector(`.item[data-id="${id}"]`);
+      if (selectedItem && window.matchMedia("(max-width: 860px)").matches) {
+        selectedItem.scrollIntoView({ block: "nearest" });
+      }
+    } catch (error) {
+      reader.replaceChildren(h("div", { class: "empty" }, h("div", {}, h("h3", { text: "Kon het bericht niet openen" }), error.message)));
+    }
+  }
+
+  function renderMessage(m) {
+    const draft = m.drafts.find((d) => d.status === "wacht op goedkeuring");
+    const sent = m.drafts.find((d) => d.status === "verzonden");
+    const name = displaySender(m.sender);
+
+    const header = h("div", { class: "card" },
+      h("div", { class: "from" },
+        h("div", { class: "avatar", text: initials(name) }),
+        h("div", {},
+          h("div", { style: "font-weight:650", text: name }),
+          h("div", { class: "meta" },
+            h("span", { text: m.sender.includes("<") ? m.sender.replace(/.*</, "<") : "" }),
+            h("span", { text: formatFull(m.received_at) }),
+            h("span", { text: CHANNEL_LABELS[m.channel] || m.channel }),
+          ),
+        ),
+      ),
+      h("h1", { text: m.subject || "(geen onderwerp)" }),
+      h("div", { class: "meta" },
+        intentChip(m.intent),
+        urgencyChip(m.urgency),
+        h("span", { text: `Status: ${m.status}` }),
+      ),
+    );
+
+    const analysis = m.summary ? h("div", { class: "card" },
+      h("h3", { text: "Samenvatting" }),
+      h("p", { class: "summary-text", text: m.summary }),
+    ) : null;
+
+    const bodyCard = h("div", { class: "card" },
+      h("h3", { text: "Bericht" }),
+      h("p", { class: "body", text: m.body || "(leeg bericht)" }),
+    );
+
+    let draftCard;
+    if (draft) {
+      draftCard = renderDraft(m, draft);
+    } else if (sent) {
+      draftCard = h("div", { class: "card" },
+        h("h3", { text: "Antwoord" }),
+        h("p", { class: "sent-note", text: "✓ Verzonden" }),
+        h("p", { class: "body", style: "margin-top:10px", text: sent.body }),
+      );
+    } else {
+      draftCard = h("div", { class: "card" },
+        h("h3", { text: "Antwoord" }),
+        h("p", { class: "hint", style: "margin:0", text: "Voor dit bericht is geen antwoord nodig." }),
+      );
+    }
+
+    $("#reader").replaceChildren(h("div", { class: "reader-inner" }, header, analysis, bodyCard, draftCard));
+    $("#reader").scrollTop = 0;
+  }
+
+  function renderDraft(m, draft) {
+    const textarea = h("textarea", { "aria-label": "Tekst van het antwoord" });
+    textarea.value = draft.body;
+    const warnings = draft.errors.length || draft.reason
+      ? h("div", { class: draft.errors.length ? "notice warn" : "notice info" },
+          h("div", {},
+            draft.errors.length ? h("strong", { text: "Let op: prijscontrole" }) : h("strong", { text: "Toelichting van het model" }),
+            h("ul", {}, ...draft.errors.map((e) => h("li", { text: e })), draft.errors.length === 0 ? h("li", { text: draft.reason }) : null),
+          ),
+        )
+      : null;
+
+    const approve = h("button", { class: "btn primary", type: "button", onclick: () => approveDraft(draft.id, textarea, approve) }, "Goedkeuren en verzenden");
+    const reject = h("button", { class: "btn danger", type: "button", onclick: () => rejectDraft(draft.id, reject) }, "Afwijzen");
+    const reset = h("button", { class: "btn ghost", type: "button", onclick: () => { textarea.value = draft.body; } }, "Herstel concept");
+
+    return h("div", { class: "card draft" },
+      h("h3", { text: "Concept-antwoord" }),
+      warnings,
+      textarea,
+      h("div", { class: "actions" }, reset, h("span", { class: "spacer" }), reject, approve),
+      h("div", { class: "hint" }, "Wijzig de tekst gerust. Het verzenden gebeurt pas na goedkeuring."),
+    );
+  }
+
+  async function approveDraft(draftId, textarea, button) {
+    const body = textarea.value.trim();
+    if (!body) { toast("Het antwoord is leeg.", true); return; }
+    button.disabled = true;
+    try {
+      await api(`/api/drafts/${draftId}/approve`, { method: "POST", body: JSON.stringify({ body }) });
+      toast("Antwoord verzonden");
+    } catch (error) {
+      if (error.status === 409 && confirm(`${error.message}\n\nToch verzenden?`)) {
+        try {
+          await api(`/api/drafts/${draftId}/approve`, { method: "POST", body: JSON.stringify({ body, force: true }) });
+          toast("Antwoord verzonden");
+        } catch (second) {
+          toast(second.message, true);
+          button.disabled = false;
+          return;
+        }
+      } else {
+        toast(error.message, true);
+        button.disabled = false;
+        return;
+      }
+    }
+    await refresh();
+  }
+
+  async function rejectDraft(draftId, button) {
+    if (!confirm("Dit concept afwijzen? Er wordt niets verzonden.")) return;
+    button.disabled = true;
+    try {
+      await api(`/api/drafts/${draftId}/reject`, { method: "POST" });
+      toast("Concept afgewezen");
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+      button.disabled = false;
+    }
+  }
+
+  /* ---------- data verversen ---------- */
+
+  async function loadStats() {
+    state.stats = await api("/api/stats");
+    renderNav();
+  }
+
+  async function refresh() {
+    try {
+      await loadStats();
+      await loadList();
+      if (state.selected !== null && state.messages.some((m) => m.id === state.selected)) {
+        await selectMessage(state.selected);
+      }
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  function currentTabFromHash() {
+    const id = location.hash.replace("#", "");
+    return TABS.some((t) => t.id === id) ? id : "pending";
+  }
+
+  async function onTabChange() {
+    state.tab = currentTabFromHash();
+    state.selected = null;
+    $("#reader").replaceChildren(h("div", { class: "empty" }, h("div", {}, h("h3", { text: "Kies een bericht" }), "Gebruik j en k om door de lijst te bewegen.")));
+    renderNav();
+    await loadList();
+  }
+
+  /* ---------- toetsenbord ---------- */
+
+  function moveSelection(step) {
+    if (!state.messages.length) return;
+    const index = state.messages.findIndex((m) => m.id === state.selected);
+    const next = state.messages[Math.min(Math.max(index + step, 0), state.messages.length - 1)];
+    if (next) {
+      selectMessage(next.id);
+      document.querySelector(`.item[data-id="${next.id}"]`)?.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  document.addEventListener("keydown", (event) => {
+    const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || "");
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "j") moveSelection(1);
+    if (event.key === "k") moveSelection(-1);
+    if (event.key === "/") { event.preventDefault(); $("#q").focus(); }
+  });
+
+  /* ---------- zoeken & sync ---------- */
+
+  let searchTimer;
+  $("#q").addEventListener("input", (event) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.query = event.target.value.trim();
+      loadList();
+    }, 250);
+  });
+
+  $("#sync").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Bezig…";
+    try {
+      const result = await api("/api/sync", { method: "POST" });
+      toast(result.processed ? `${result.processed} nieuwe berichten verwerkt` : "Geen nieuwe berichten");
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Synchroniseer";
+    }
+  });
+
+  window.addEventListener("hashchange", onTabChange);
+  setInterval(() => { loadStats().catch(() => {}); }, 60000);
+
+  state.tab = currentTabFromHash();
+  if (!location.hash) location.hash = state.tab;
+  loadStats().then(loadList).catch((error) => toast(error.message, true));
+})();
+</script>
+</body>
+</html>

@@ -12,6 +12,10 @@ from werker.store import Store
 
 log = logging.getLogger(__name__)
 
+class SendError(RuntimeError):
+    """Het verzenden is mislukt; de reden staat ook in het auditlog."""
+
+
 DRAFT_INTENTS = frozenset({Intent.PRIJSVRAAG, Intent.AFSPRAAK, Intent.KLACHT, Intent.FACTUUR, Intent.OVERIG})
 
 
@@ -64,21 +68,35 @@ class Pipeline:
         self._store.audit(message_id, decision.action.value, decision.reason)
 
         if decision.action is Action.SEND and draft is not None and draft_id is not None:
-            self._send(message_id, msg, draft_id, draft.body)
+            try:
+                self._send(message_id, msg, draft_id, draft.body)
+            except SendError:
+                pass  # al vastgelegd in het auditlog; het concept blijft staan
         elif draft is not None:
             self._store.set_status(message_id, "concept klaar")
         else:
             self._store.set_status(message_id, "gelabeld")
         return decision
 
+    def sync(self) -> int:
+        """Ververs de prijzen en verwerk alle nieuwe berichten van de connectors. Geeft het aantal verwerkte berichten."""
+        self.prices.refresh()
+        processed = 0
+        for connector in self._connectors.values():
+            for msg in connector.fetch_new():
+                if self.process(msg) is not None:
+                    processed += 1
+        return processed
+
     def approve(self, draft_id: int, body: str | None = None, force: bool = False) -> None:
+        """Verstuur een concept na menselijke goedkeuring. Bij een verzendfout blijft het concept staan."""
         row = self._store.get_draft(draft_id)
         if row is None or row["status"] != "wacht op goedkeuring":
             raise LookupError(f"concept {draft_id} wacht niet op goedkeuring")
         text = body if body is not None else row["body"]
         errors = validate_prices(text, self.prices.prices)
         if errors and not force:
-            raise ValueError("prijscontrole mislukt (gebruik --force om toch te verzenden): " + "; ".join(errors))
+            raise ValueError("prijscontrole mislukt; bevestig om toch te verzenden: " + "; ".join(errors))
         self._store.set_draft_status(draft_id, "wacht op goedkeuring", body=text)
         self._send(row["message_id"], self._store.get_message(row["message_id"]), draft_id, text, by_human=True)
 
@@ -99,7 +117,7 @@ class Pipeline:
             log.exception("verzenden mislukt voor bericht %s", message_id)
             self._store.audit(message_id, "verzending mislukt", str(exc))
             self._store.set_status(message_id, "verzending mislukt")
-            return
+            raise SendError(f"verzenden mislukt: {exc}") from exc
         self._store.set_draft_status(draft_id, "verzonden")
         self._store.set_status(message_id, "beantwoord")
         self._store.audit(message_id, "verzonden", "door mens goedgekeurd" if by_human else "automatisch")
