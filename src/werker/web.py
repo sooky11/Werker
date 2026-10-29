@@ -25,6 +25,7 @@ class ApproveIn(BaseModel):
     body: str | None = None
     force: bool = False
     send_at: datetime | None = None
+    slot_start: datetime | None = None  # bij een afspraak: het gekozen tijdstip
 
 
 class ClientIn(BaseModel):
@@ -197,7 +198,13 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
     def approve(draft_id: int, payload: ApproveIn = Body(default=ApproveIn())) -> dict[str, Any]:
         send_at = _utc(payload.send_at)
         try:
-            pipeline().approve(draft_id, body=payload.body, force=payload.force, send_at=send_at)
+            pipeline().approve(
+                draft_id,
+                body=payload.body,
+                force=payload.force,
+                send_at=send_at,
+                slot_start=payload.slot_start,
+            )
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
         except ValueError as exc:

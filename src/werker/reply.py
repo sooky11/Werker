@@ -75,6 +75,23 @@ REVISE_TOOL: dict[str, Any] = {
 }
 
 
+def _slot_rules(slots: list[str]) -> str:
+    """Extra regels voor het concept als er een agenda is: alleen deze tijdstippen mogen genoemd worden."""
+    if not slots:
+        return (
+            "\n\nAfspraken:\n"
+            "- Er zijn geen vrije tijdstippen gevonden. Noem geen datum of tijd; vraag de klant om andere momenten door te geven "
+            "en zet needs_human op true."
+        )
+    listed = "\n".join(f"- {slot}" for slot in slots)
+    return (
+        "\n\nAfspraken:\n"
+        "- Stel alleen tijdstippen voor uit de onderstaande lijst. Noem geen andere datum of tijd, ook niet als de klant er om vraagt.\n"
+        "- Vraag de klant welk tijdstip hem of haar uitkomt.\n\n"
+        f"Vrije tijdstippen:\n{listed}"
+    )
+
+
 class RevisionError(ValueError):
     """De gerichte wijziging kon niet netjes worden toegepast; maak dan een nieuw concept."""
 
@@ -118,14 +135,23 @@ class Replier:
         self._client = client
         self._model = model
 
-    def draft(self, msg: Message, cls: Classification, prices: list[Price]) -> Draft:
+    def draft(
+        self,
+        msg: Message,
+        cls: Classification,
+        prices: list[Price],
+        slots: list[str] | None = None,
+    ) -> Draft:
+        system = SYSTEM.format(
+            language=cls.language or "de taal van het bericht",
+            price_list=format_price_list(prices),
+        )
+        if slots is not None:
+            system += _slot_rules(slots)
         response = self._client.messages.create(
             model=self._model,
             max_tokens=800,
-            system=SYSTEM.format(
-                language=cls.language or "de taal van het bericht",
-                price_list=format_price_list(prices),
-            ),
+            system=system,
             tools=[TOOL],
             tool_choice={"type": "tool", "name": TOOL_NAME},
             messages=[{"role": "user", "content": f"Intentie: {cls.intent.value}\n\n{render_message(msg)}"}],
