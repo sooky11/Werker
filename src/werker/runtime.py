@@ -22,6 +22,7 @@ from typing import Any, Mapping
 import anthropic
 
 from werker.calendar_providers import CalendarProvider, GoogleCalendarProvider, NoCalendar, build_service
+from werker.auth import USERS_KEY, clean_accounts, load_accounts
 from werker.classify import Classifier
 from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
@@ -165,6 +166,9 @@ class Runtime:
             return {}
         return json.loads(self._secrets_path.read_text(encoding="utf-8"))
 
+    def secret_value(self, key: str) -> str:
+        return self._read_secrets().get(key, "")
+
     def _write_secrets(self, data: dict[str, str]) -> None:
         self._secrets_path.parent.mkdir(parents=True, exist_ok=True)
         # Het bestand krijgt meteen de juiste rechten, zodat het nooit even open te lezen is.
@@ -202,6 +206,8 @@ class Runtime:
         return {
             "values": values,
             "mailboxes": mailboxes,
+            # Alleen naam en rol; wachtwoorden verlaten de server nooit.
+            "users": load_accounts(self.store),
             "secrets_set": {key: bool(env.get(key)) for key in SECRET_KEYS},
             "peppol_map": str(self.invoicing.folder),
             "peppol_connected": self.invoicing.access_point is not None,
@@ -214,6 +220,7 @@ class Runtime:
         values: Mapping[str, Any] | None = None,
         secrets: Mapping[str, str] | None = None,
         mailboxes: list[dict[str, Any]] | None = None,
+        users: list[dict[str, Any]] | None = None,
     ) -> None:
         with self._lock:
             # Eerst alles controleren, dan pas opslaan: een fout laat de instellingen ongemoeid.
@@ -233,9 +240,14 @@ class Runtime:
             cleaned_mailboxes = None
             if mailboxes is not None:
                 cleaned_mailboxes = self._clean_mailboxes(mailboxes, stored_secrets)
+            cleaned_users = None
+            if users is not None:
+                cleaned_users = clean_accounts(users, stored_secrets)
             self.store.set_settings({k: None if v is None else str(v) for k, v in values.items()})
             if cleaned_mailboxes is not None:
                 self.store.set_settings({"WERKER_MAILBOXES": json.dumps(cleaned_mailboxes)})
+            if cleaned_users is not None:
+                self.store.set_settings({USERS_KEY: json.dumps(cleaned_users)})
             self._write_secrets(stored_secrets)
         self.reconfigure()
 

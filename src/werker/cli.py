@@ -236,15 +236,16 @@ def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
 
     import uvicorn
 
+    from werker.auth import accounts_configured
     from werker.runtime import Runtime, run_background
     from werker.web import create_app
 
     env = os.environ
     ui_password = env.get("WERKER_UI_PASSWORD", "")
-    if args.host not in LOCAL_HOSTS and not ui_password:
-        print("Weiger te starten: zet WERKER_UI_PASSWORD voordat je op een netwerk-interface luistert.", file=sys.stderr)
-        return 1
     store = Store(settings.db_path)
+    if args.host not in LOCAL_HOSTS and not ui_password and not accounts_configured(store):
+        print("Weiger te starten: zet WERKER_UI_PASSWORD of maak teamaccounts aan voordat je op een netwerk-interface luistert.", file=sys.stderr)
+        return 1
     runtime = Runtime(store, Path(settings.db_path).resolve().parent, env)
     runtime.reconfigure()
     app = create_app(runtime, ui_password=ui_password)

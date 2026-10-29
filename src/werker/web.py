@@ -4,13 +4,13 @@ import json
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 
+from werker.auth import make_auth, require_beheerder
 from werker.connectors.whatsapp import parse_webhook, verify_signature
 from werker.peppol import InvoiceError
 from werker.invoicing import validate_only
@@ -56,19 +56,8 @@ class SettingsIn(BaseModel):
     values: dict[str, Any] | None = None
     secrets: dict[str, str] | None = None
     mailboxes: list[dict[str, Any]] | None = None
-
-
-def _auth_dependency(password: str) -> Callable[..., None]:
-    """Zonder wachtwoord is de pagina open; met wachtwoord vraagt de browser om inloggegevens."""
-    if not password:
-        return lambda: None
-    basic = HTTPBasic()
-
-    def check(credentials: HTTPBasicCredentials = Depends(basic)) -> None:
-        if not secrets.compare_digest(credentials.password.encode(), password.encode()):
-            raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Basic"})
-
-    return check
+    # Gewenste lijst met teamaccounts. Een wachtwoord is alleen nodig bij een nieuwe gebruiker of bij wijzigen.
+    users: list[dict[str, Any]] | None = None
 
 
 def _utc(moment: datetime | None) -> datetime | None:
@@ -130,7 +119,8 @@ def _draft(store: Store, row: Any) -> dict[str, Any]:
 
 def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
     app = FastAPI(title="Werker")
-    ui_auth = Depends(_auth_dependency(ui_password))
+    # Levert de ingelogde gebruikersnaam (None zonder accounts); de rol-controle staat in werker.auth.
+    ui_auth = Depends(make_auth(runtime, ui_password))
 
     @app.middleware("http")
     async def require_json_for_writes(request: Request, call_next):
@@ -197,7 +187,9 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
         }
 
     @app.post("/api/drafts/{draft_id}/approve", dependencies=[ui_auth])
-    def approve(draft_id: int, payload: ApproveIn = Body(default=ApproveIn())) -> dict[str, Any]:
+    def approve(
+        draft_id: int, payload: ApproveIn = Body(default=ApproveIn()), user: str | None = ui_auth
+    ) -> dict[str, Any]:
         send_at = _utc(payload.send_at)
         try:
             pipeline().approve(
@@ -206,6 +198,7 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
                 force=payload.force,
                 send_at=send_at,
                 slot_start=payload.slot_start,
+                by=user,
             )
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
@@ -217,17 +210,17 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
         return {"status": "ingepland" if scheduled else "verzonden"}
 
     @app.post("/api/drafts/{draft_id}/cancel-schedule", dependencies=[ui_auth])
-    def cancel_schedule(draft_id: int) -> dict[str, Any]:
+    def cancel_schedule(draft_id: int, user: str | None = ui_auth) -> dict[str, Any]:
         try:
-            pipeline().cancel_schedule(draft_id)
+            pipeline().cancel_schedule(draft_id, by=user)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
         return {"status": WAITING}
 
     @app.post("/api/drafts/{draft_id}/reject", dependencies=[ui_auth])
-    def reject(draft_id: int) -> dict[str, Any]:
+    def reject(draft_id: int, user: str | None = ui_auth) -> dict[str, Any]:
         try:
-            pipeline().reject(draft_id)
+            pipeline().reject(draft_id, by=user)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
         return {"status": "afgewezen"}
@@ -287,9 +280,15 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
         return runtime.settings_view()
 
     @app.put("/api/settings", dependencies=[ui_auth])
-    def put_settings(payload: SettingsIn) -> dict[str, Any]:
+    def put_settings(payload: SettingsIn, user: str | None = ui_auth) -> dict[str, Any]:
+        require_beheerder(runtime, user)
         try:
-            runtime.update(values=payload.values, secrets=payload.secrets, mailboxes=payload.mailboxes)
+            runtime.update(
+                values=payload.values,
+                secrets=payload.secrets,
+                mailboxes=payload.mailboxes,
+                users=payload.users,
+            )
         except (ValueError, KeyError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return runtime.settings_view()
