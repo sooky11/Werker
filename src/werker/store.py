@@ -120,13 +120,18 @@ def _as_utc(moment: datetime) -> datetime:
     return moment.astimezone(timezone.utc)
 
 
-class Store:
+# Na _locked en de andere hulpfuncties: store_privacy importeert die uit dit bestand.
+from werker.store_privacy import PrivacyStoreMixin  # noqa: E402
+
+
+class Store(PrivacyStoreMixin):
     def __init__(self, path: str):
         self._lock = threading.RLock()
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
         self._migrate()
+        self._ensure_privacy_schema()
 
     def close(self) -> None:
         self._db.close()
