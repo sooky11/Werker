@@ -10,6 +10,7 @@ INTENT_LABELS: list[tuple[str | None, str]] = [
     ("afspraak", "Afspraken"),
     ("klacht", "Klachten"),
     ("factuur", "Facturen"),
+    ("betaling", "Betalingen gemeld"),
     ("overig", "Overig"),
     ("nieuwsbrief", "Nieuwsbrieven"),
     ("spam", "Spam"),

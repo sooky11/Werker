@@ -14,7 +14,8 @@ Kies de intent die het best past:
 - prijsvraag: vraag naar prijs, tarief, kosten of een offerte
 - afspraak: inplannen, verzetten of vragen naar beschikbaarheid
 - klacht: ontevredenheid, probleem met een geleverde dienst of product
-- factuur: factuur, betaling, betalingsherinnering
+- factuur: vraag om een factuur, betalingsherinnering van de klant of van ons
+- betaling: de klant meldt dat hij of zij heeft betaald of het bedrag heeft overgemaakt
 - nieuwsbrief: massamail of marketing
 - spam: ongevraagde reclame of phishing
 - overig: al het andere"""

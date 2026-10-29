@@ -179,3 +179,84 @@ def test_not_configured_is_clear_in_the_map_reason(env):
     invoice_id = service.import_xml(ubl())
     service.mark_paid(invoice_id)
     assert NotConfigured.__name__ in "NotConfigured" and store.get_invoice(invoice_id)["status"] == IN_MAP
+
+
+# ---------- betaalmeldingen uit berichten ----------
+
+from datetime import datetime, timezone  # noqa: E402
+
+from werker.classify import Classification  # noqa: E402
+from werker.models import Draft, Intent, Message  # noqa: E402
+from werker.pipeline import Pipeline  # noqa: E402
+from werker.policy import PolicyConfig  # noqa: E402
+from werker.prices import PriceBook  # noqa: E402
+from werker.rules import RuleConfig  # noqa: E402
+
+
+def test_payment_message_with_invoice_number_marks_paid_and_sends_to_map(env):
+    store, folder = env
+    service = Invoicing(store, folder)
+    service.import_xml(ubl())
+    matched = service.match_message("Hoi, factuur 2026-001 is betaald.", None)
+    assert matched == ["2026-001"]
+    row = store.find_invoice_by_number("2026-001")
+    assert row["status"] == IN_MAP and row["paid_at"] is not None
+
+
+def test_payment_message_with_wrong_amount_is_not_marked_paid(env):
+    store, folder = env
+    service = Invoicing(store, folder, FakeAccessPoint())
+    service.import_xml(ubl())
+    assert service.match_message("Factuur 2026-001 betaald, 100 euro.", None) == []
+    assert store.find_invoice_by_number("2026-001")["status"] == WAITING_PAYMENT
+
+
+def test_ambiguous_payment_is_left_for_a_human(env):
+    store, folder = env
+    service = Invoicing(store, folder, FakeAccessPoint())
+    service.import_xml(ubl(number="A"))
+    service.import_xml(ubl(number="B"))
+    assert service.match_message("Ik heb betaald.", None) == []
+    assert store.find_invoice_by_number("A")["status"] == WAITING_PAYMENT
+
+
+def test_payment_without_number_matches_the_only_open_invoice_of_the_client(env):
+    store, folder = env
+    service = Invoicing(store, folder, FakeAccessPoint())
+    client_id = store.create_client("Klant B.V.", [("email", "klant@x.nl")])
+    service.import_xml(ubl(number="A"), client_id=client_id)
+    assert service.match_message("Ik heb het bedrag overgemaakt, 1210 euro.", client_id) == ["A"]
+
+
+def test_invoice_is_linked_to_client_with_same_name_on_import(env):
+    store, folder = env
+    client_id = store.create_client("klant b.v.", [("email", "klant@x.nl")])
+    service = Invoicing(store, folder)
+    invoice_id = service.import_xml(ubl(number="C"))
+    assert store.get_invoice(invoice_id)["client_id"] == client_id
+
+
+def test_payment_message_creates_no_draft_and_marks_message(tmp_path):
+    store = Store(str(tmp_path / "w.db"))
+
+    class Classifier:
+        def classify(self, msg):
+            return Classification(Intent.BETALING, "normaal", "nl", 0.95, "Meldt betaling.")
+
+    class NoDraft:
+        def draft(self, *a):
+            raise AssertionError("bij een betaalmelding hoort geen concept")
+
+    service = Invoicing(store, tmp_path / "map", FakeAccessPoint())
+    service.import_xml(ubl())
+    prices = PriceBook(lambda: [])
+    pipeline = Pipeline(store, Classifier(), NoDraft(), prices, PolicyConfig(), RuleConfig(), {},
+                        payments=service.match_message)
+    msg = Message("mail", "<pay@x>", "<pay@x>", "klant@x.nl", "Betaald", "Factuur 2026-001 is betaald.",
+                  datetime.now(timezone.utc))
+    decision = pipeline.process(msg)
+    assert decision is not None
+    assert store.find_invoice_by_number("2026-001")["status"] == SENT
+    message_row = store.find_message_id("mail", "<pay@x>")
+    assert store.get_message_row(message_row)["status"] == "betaling verwerkt"
+    store.close()

@@ -10,6 +10,7 @@ class Intent(StrEnum):
     AFSPRAAK = "afspraak"
     KLACHT = "klacht"
     FACTUUR = "factuur"
+    BETALING = "betaling"
     NIEUWSBRIEF = "nieuwsbrief"
     SPAM = "spam"
     OVERIG = "overig"

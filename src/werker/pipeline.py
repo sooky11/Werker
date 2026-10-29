@@ -34,8 +34,11 @@ class Pipeline:
         policy: PolicyConfig,
         rules: RuleConfig,
         connectors: Mapping[str, Connector],
+        payments: Any = None,
     ):
         self._store = store
+        # Functie(body, client_id) -> lijst met nummers van facturen die daardoor betaald zijn.
+        self._payments = payments
         self._classifier = classifier
         self._replier = replier
         self.prices = prices
@@ -54,6 +57,7 @@ class Pipeline:
         policy: PolicyConfig | None = None,
         rules: RuleConfig | None = None,
         connectors: Mapping[str, Connector] | None = None,
+        payments: Any = None,
     ) -> None:
         """Pas instellingen toe zonder de app opnieuw te starten. Alleen de meegegeven onderdelen veranderen."""
         if classifier is not None:
@@ -68,6 +72,8 @@ class Pipeline:
             self._rules = rules
         if connectors is not None:
             self._connectors = dict(connectors)
+        if payments is not None:
+            self._payments = payments
 
     # ---------- binnenkomende berichten ----------
 
@@ -107,6 +113,9 @@ class Pipeline:
             cls = self._classifier.classify(msg)
         self._store.set_classification(message_id, cls)
 
+        if cls.intent is Intent.BETALING:
+            return self._handle_payment(message_id, msg, cls)
+
         draft: Draft | None = None
         draft_id: int | None = None
         errors: list[str] = []
@@ -142,6 +151,18 @@ class Pipeline:
             self._store.set_status(message_id, "concept klaar")
         else:
             self._store.set_status(message_id, "gelabeld")
+        return decision
+
+    def _handle_payment(self, message_id: int, msg: Message, cls: Classification) -> Decision:
+        row = self._store.get_message_row(message_id)
+        matched = self._payments(msg.body, row["client_id"]) if self._payments is not None else []
+        if matched:
+            self._store.set_status(message_id, "betaling verwerkt")
+            decision = Decision(Action.LABEL, f"factuur {', '.join(matched)} op betaald gezet")
+        else:
+            self._store.set_status(message_id, "betaling gemeld")
+            decision = Decision(Action.LABEL, "betaling gemeld; geen eenduidige factuur")
+        self._store.audit(message_id, decision.action.value, decision.reason)
         return decision
 
     def _revise(self, msg: Message, current: str, prices: list[Price]) -> tuple[Draft | None, str]:

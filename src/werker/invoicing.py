@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from werker.peppol import AccessPoint, InvoiceError, parse_bank_csv, parse_ubl, remove_from_map, write_to_map
+from werker.prices import find_amounts
 from werker.store import Store
 
 log = logging.getLogger(__name__)
@@ -33,12 +34,17 @@ class Invoicing:
 
     # ---------- importeren ----------
 
-    def import_xml(self, xml: str) -> int:
-        """Importeer een UBL-factuur. Geeft het nieuwe factuur-id. Ongeldige facturen worden geweigerd met alle problemen."""
+    def import_xml(self, xml: str, client_id: int | None = None) -> int:
+        """Importeer een UBL-factuur. Geeft het nieuwe factuur-id. Ongeldige facturen worden geweigerd met alle problemen.
+
+        Zonder client_id koppelen we de factuur aan een klant met dezelfde naam als de afnemer, als die bestaat.
+        """
         raw = xml.encode("utf-8")
         parsed = parse_ubl(raw)
         if self._store.find_invoice_by_number(parsed.number) is not None:
             raise ValueError(f"factuur {parsed.number} staat er al in")
+        if client_id is None:
+            client_id = self._client_by_name(parsed.buyer_name)
         fields = {
             "issue_date": parsed.issue_date,
             "due_date": parsed.due_date,
@@ -49,7 +55,47 @@ class Invoicing:
             "buyer_name": parsed.buyer_name,
             "buyer_endpoint": parsed.buyer_endpoint,
         }
+        fields["client_id"] = client_id
         return self._store.add_invoice(parsed.number, fields, xml, WAITING_PAYMENT)
+
+    def _client_by_name(self, name: str) -> int | None:
+        matches = [row["id"] for row in self._store.list_clients() if row["name"].strip().lower() == name.strip().lower()]
+        return matches[0] if len(matches) == 1 else None
+
+    # ---------- betalingen uit berichten ----------
+
+    def match_message(self, body: str, client_id: int | None) -> list[str]:
+        """Herken een betaalmelding in een klantbericht en zet de factuur op betaald.
+
+        Automatisch alleen als er precies één openstaande factuur past: het nummer staat in het bericht,
+        of de klant heeft er maar één openstaan. Staat er een bedrag in het bericht, dan moet dat kloppen.
+        Anders blijft het als melding staan en beslis jij.
+        """
+        with self._lock:
+            return self._match_message(body, client_id)
+
+    def _match_message(self, body: str, client_id: int | None) -> list[str]:
+        open_invoices = self._store.list_invoices(status=WAITING_PAYMENT)
+        text = body.lower()
+        mentioned = [i for i in open_invoices if i["number"].lower() in text]
+        if mentioned:
+            candidates = mentioned
+        elif client_id is not None:
+            candidates = [i for i in open_invoices if i["client_id"] == client_id]
+        else:
+            candidates = []
+        if len(candidates) != 1:
+            self._store.audit(None, "betaling gemeld", "geen eenduidige factuur gevonden")
+            return []
+        invoice = candidates[0]
+        amounts = find_amounts(body)
+        if amounts and Decimal(invoice["total_incl"]) not in amounts:
+            self._store.audit(None, "betaling gemeld", f"bedrag komt niet overeen met factuur {invoice['number']}")
+            return []
+        self._store.update_invoice(invoice["id"], status=TO_SEND, paid_at=datetime.now(timezone.utc).isoformat())
+        self._store.audit(None, "factuur betaald (uit bericht)", invoice["number"])
+        self._send(invoice["id"])
+        return [invoice["number"]]
 
     # ---------- betalingen ----------
 

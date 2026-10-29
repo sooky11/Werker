@@ -82,13 +82,15 @@ create table if not exists invoices (
     paid_at text,
     sent_at text,
     last_error text not null default '',
-    created_at text not null
+    created_at text not null,
+    client_id integer references clients(id)
 );
 """
 
 # Kolommen die na een eerste versie zijn toegevoegd; oudere databases krijgen ze alsnog.
 _ADDED_COLUMNS = {
     "messages": {"client_id": "integer references clients(id)"},
+    "invoices": {"client_id": "integer references clients(id)"},
     "drafts": {
         "scheduled_for": "text",
         "revises": "integer",
@@ -422,8 +424,8 @@ class Store:
         with self._db:
             cursor = self._db.execute(
                 """insert into invoices (number, issue_date, due_date, currency, total_excl, total_vat,
-                   total_incl, buyer_name, buyer_endpoint, xml, status, created_at)
-                   values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   total_incl, buyer_name, buyer_endpoint, xml, status, created_at, client_id)
+                   values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     number,
                     fields["issue_date"],
@@ -437,6 +439,7 @@ class Store:
                     xml,
                     status,
                     _now(),
+                    fields.get("client_id"),
                 ),
             )
         return cursor.lastrowid
@@ -459,7 +462,7 @@ class Store:
 
     @_locked
     def update_invoice(self, invoice_id: int, **values: Any) -> None:
-        allowed = {"status", "paid_at", "sent_at", "last_error"}
+        allowed = {"status", "paid_at", "sent_at", "last_error", "client_id"}
         if set(values) - allowed:
             raise ValueError(f"onbekend factuurveld: {set(values) - allowed}")
         assignments = ", ".join(f"{key} = ?" for key in values)

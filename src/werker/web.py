@@ -40,6 +40,11 @@ class InvoiceIn(BaseModel):
     xml: str
 
 
+class ImportIn(BaseModel):
+    xml: str
+    client_id: int | None = None
+
+
 class BankIn(BaseModel):
     csv: str
 
@@ -294,9 +299,9 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
         return {**_invoice_summary(row), "xml": row["xml"]}
 
     @app.post("/api/invoices/import", dependencies=[ui_auth])
-    def import_invoice(payload: InvoiceIn) -> dict[str, Any]:
+    def import_invoice(payload: ImportIn) -> dict[str, Any]:
         try:
-            invoice_id = runtime.invoicing.import_xml(payload.xml)
+            invoice_id = runtime.invoicing.import_xml(payload.xml, client_id=payload.client_id)
         except InvoiceError as exc:
             raise HTTPException(status_code=422, detail={"problems": exc.problems})
         except ValueError as exc:

@@ -64,3 +64,7 @@
 {"id": "o08", "channel": "whatsapp", "sender": "Femke <31600000048>", "subject": "", "body": "Dank je wel voor gisteren! Fijn om je te spreken.", "expected_intent": "overig", "must_not": ["klacht", "spam"]}
 {"id": "o09", "channel": "mail", "sender": "Ouder van Sam <ouder.sam@example.nl>", "subject": "Adres vestiging", "body": "Kunt u mij het adres van jullie vestiging in Utrecht doorgeven?", "expected_intent": "overig", "must_not": ["spam"]}
 {"id": "o10", "channel": "mail", "sender": "Ramon Ortiz <ramon.ortiz@example.com>", "subject": "Quick question", "body": "Hi, do you also accept payments in English? Thanks.", "expected_intent": "overig", "must_not": ["spam", "klacht"]}
+{"id": "b01", "channel": "mail", "sender": "Sanne <sanne@voorbeeld.nl>", "subject": "Betaald", "body": "Hoi, ik heb factuur 2026-001 vandaag overgemaakt.", "expected_intent": "betaling", "must_not": ["klacht"]}
+{"id": "b02", "channel": "whatsapp", "sender": "Lisa <31611112222>", "subject": "", "body": "betaald hoor! 👍", "expected_intent": "betaling", "must_not": ["spam"]}
+{"id": "b03", "channel": "mail", "sender": "Mark <mark@bakker.nl>", "subject": "Betaling", "body": "Ik heb het bedrag van de factuur al voldaan, zie je bankafschrift.", "expected_intent": "betaling", "must_not": ["factuur"]}
+{"id": "b04", "channel": "mail", "sender": "Tanja <tanja@voorbeeld.nl>", "subject": "Factuur", "body": "Kunt u de factuur van april nog eens sturen?", "expected_intent": "factuur", "must_not": ["betaling"]}

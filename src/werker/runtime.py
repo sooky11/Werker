@@ -252,6 +252,7 @@ class Runtime:
             "policy": settings.policy,
             "rules": settings.rules,
             "connectors": build_connectors(env),
+            "payments": self.invoicing.match_message,
         }
 
     def reconfigure(self) -> None:

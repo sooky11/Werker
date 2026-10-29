@@ -84,6 +84,13 @@ Berichten worden automatisch aan een klant gekoppeld op basis van het e-mailadre
 - **Vervolgvragen:** stuurt een klant een tweede bericht in dezelfde draad, dan past Werker het lopende concept alleen op de juiste plekken aan. De rest blijft staan. Lukt dat niet veilig, dan schrijft het een nieuw concept. Bij het concept zie je wat er veranderd is en kun je de vorige versie bekijken.
 - **Inplannen:** bij goedkeuren kies je "Nu verzenden", een vast tijdstip, of "Op een tijdstip…". Een ingepland bericht kun je annuleren; het gaat dan terug naar de wachtrij. Verzenden gebeurt op de achtergrond, ook als het venster dicht is (bureaubladprogramma) of de server draait.
 
+## Facturen en betalingen
+
+- **Importeren:** upload een UBL-factuur (Peppol BIS 3.0) op het Peppol-tabblad. Ongeldige facturen worden geweigerd, met alle problemen erbij. Koppel een factuur aan een klant; zonder keuze gebeurt dat op naam.
+- **Betaling melden:** een klant die schrijft dat hij of zij heeft betaald, zet Werker automatisch op betaald, als dat eenduidig is. Dat gebeurt als het factuurnummer in het bericht staat, of als de klant maar één factuur openstaan heeft. Staat er een bedrag in het bericht dat niet klopt, dan doet Werker niets en laat het je weten.
+- **Versturen:** zonder Peppol-koppeling (die is er nog niet) komt een betaalde factuur in de map `peppol-map` in je datamap, met een tekstbestand dat de reden noemt. Daar kun je ze vandaan halen, of later opnieuw laten versturen zodra er een access point is.
+- **Bankexport** is optioneel; dat kan ook, maar het is niet nodig.
+
 ## Kanalen
 
 | Kanaal | Hoe | Waar |
