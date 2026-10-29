@@ -22,6 +22,8 @@ from werker.reply import Replier
 from werker.store import Store
 
 
+log = logging.getLogger(__name__)
+
 LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
@@ -30,11 +32,15 @@ def mailbox_connectors(env: Mapping[str, str]) -> list[IMAPConnector]:
     entries = json.loads(env.get("WERKER_MAILBOXES", "[]") or "[]")
     connectors = []
     for entry in entries:
+        password = env.get(entry.get("password_env", ""), "")
+        if not password:
+            log.warning("mailbox %s overgeslagen: er is nog geen wachtwoord ingesteld", entry.get("name"))
+            continue
         connectors.append(
             IMAPConnector(
                 host=entry["host"],
                 user=entry["user"],
-                password=env[entry["password_env"]],
+                password=password,
                 smtp_host=entry["smtp_host"],
                 sender_address=entry["sender"],
                 name=f"mail:{entry['name']}",

@@ -292,3 +292,71 @@ def test_app_starts_without_api_key_and_explains_why(tmp_path):
     with pytest.raises(RuntimeError, match="API-sleutel"):
         runtime.pipeline._classifier.classify(_msg())
     store.close()
+
+
+# ---------- regressies uit de review ----------
+
+def test_approving_twice_sends_once(setup):
+    store, pipeline, connector, _ = setup
+    pipeline.process(_msg("<a@x>"))
+    draft_id = _pending_id(store)
+    pipeline.approve(draft_id)
+    with pytest.raises(LookupError):
+        pipeline.approve(draft_id)
+    assert len(connector.sent) == 1
+
+
+def test_sent_draft_cannot_be_rejected(setup):
+    store, pipeline, _, _ = setup
+    pipeline.process(_msg("<a@x>"))
+    draft_id = _pending_id(store)
+    pipeline.approve(draft_id)
+    with pytest.raises(ValueError):
+        pipeline.reject(draft_id)
+
+
+def test_failed_message_is_retried_on_next_process(setup):
+    store, pipeline, connector, replier = setup
+    original_draft = replier.draft
+
+    def broken_draft(msg, cls, prices):
+        raise ConnectionError("API tijdelijk weg")
+
+    replier.draft = broken_draft
+    with pytest.raises(ConnectionError):
+        pipeline.process(_msg("<a@x>"))
+    replier.draft = original_draft
+    assert pipeline.process(_msg("<a@x>")) is not None
+    assert store.pending_count() == 1
+
+
+def test_edits_apply_to_original_text_and_may_not_overlap():
+    original = "Prijs is €10."
+    edits = [{"old": "€10", "new": "€10 excl. btw"}, {"old": "€10", "new": "€12"}]
+    with pytest.raises(RevisionError):
+        apply_edits(original, edits)
+    assert apply_edits(original, [{"old": "€10", "new": "€12"}]) == "Prijs is €12."
+    with pytest.raises(RevisionError):
+        apply_edits(original, [])
+
+
+def test_mailbox_keys_do_not_collide():
+    assert mailbox_secret_key("info.werk") != mailbox_secret_key("info_werk")
+
+
+def test_mailbox_without_password_is_skipped_not_fatal(tmp_path):
+    import json as _json
+
+    from werker.cli import mailbox_connectors
+
+    entry = {"name": "zaak", "host": "h", "user": "u", "password_env": "MAILBOX_ZAAK_X_PW",
+             "smtp_host": "s", "sender": "a@b.nl"}
+    assert mailbox_connectors({"WERKER_MAILBOXES": _json.dumps([entry])}) == []
+
+
+def test_invalid_number_setting_is_refused_and_nothing_is_saved(tmp_path):
+    runtime, store = _runtime(tmp_path)
+    with pytest.raises(ValueError):
+        runtime.update(values={"WERKER_AUTOSEND": "true", "WERKER_MIN_CONFIDENCE": "abc"})
+    assert "WERKER_AUTOSEND" not in store.get_settings()
+    store.close()

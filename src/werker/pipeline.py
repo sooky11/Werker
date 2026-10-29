@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -41,6 +42,8 @@ class Pipeline:
         self._policy = policy
         self._rules = rules
         self._connectors = dict(connectors)
+        # Eén slot voor alles wat berichten of concepten verandert: voorkomt dubbel verzenden en dubbele concepten.
+        self._lock = threading.RLock()
 
     def reconfigure(
         self,
@@ -69,9 +72,14 @@ class Pipeline:
     # ---------- binnenkomende berichten ----------
 
     def process(self, msg: Message) -> Decision | None:
+        with self._lock:
+            return self._process(msg)
+
+    def _process(self, msg: Message) -> Decision | None:
+        # Eerst mislukte berichten weghalen, zodat ze opnieuw verwerkt worden.
+        self._store.reset_failed_message(msg.channel, msg.external_id)
         if self._store.find_message_id(msg.channel, msg.external_id) is not None:
             return None
-        self._store.reset_failed_message(msg.channel, msg.external_id)
         client_id = resolve_client(self._store, msg)
         try:
             message_id = self._store.add_message(msg, client_id=client_id)
@@ -173,6 +181,10 @@ class Pipeline:
         force: bool = False,
         send_at: datetime | None = None,
     ) -> None:
+        with self._lock:
+            self._approve(draft_id, body, force, send_at)
+
+    def _approve(self, draft_id: int, body: str | None, force: bool, send_at: datetime | None) -> None:
         """Keur een concept goed. Met send_at wordt het op dat tijdstip verstuurd, anders meteen.
 
         Bij een verzendfout blijft het concept staan en komt de reden in een SendError.
@@ -193,26 +205,41 @@ class Pipeline:
         self._send(message_id, self._store.get_message(message_id), draft_id, text, how="door mens goedgekeurd")
 
     def cancel_schedule(self, draft_id: int) -> None:
-        row = self._store.get_draft(draft_id)
-        if row is None or row["status"] != SCHEDULED:
-            raise LookupError(f"concept {draft_id} is niet ingepland")
-        self._store.unschedule_draft(draft_id)
-        self._store.audit(row["message_id"], "planning geannuleerd", f"concept {draft_id}")
+        with self._lock:
+            row = self._store.get_draft(draft_id)
+            if row is None or row["status"] != SCHEDULED:
+                raise LookupError(f"concept {draft_id} is niet ingepland")
+            self._store.unschedule_draft(draft_id)
+            self._store.audit(row["message_id"], "planning geannuleerd", f"concept {draft_id}")
 
     def reject(self, draft_id: int) -> None:
+        with self._lock:
+            self._reject(draft_id)
+
+    def _reject(self, draft_id: int) -> None:
         row = self._store.get_draft(draft_id)
         if row is None:
             raise LookupError(f"concept {draft_id} bestaat niet")
+        if row["status"] not in (WAITING, SCHEDULED):
+            raise ValueError(f"concept {draft_id} is al {row['status']}; het kan niet meer worden afgewezen")
         self._store.set_draft_status(draft_id, "afgewezen")
         self._store.audit(row["message_id"], "afgewezen", f"concept {draft_id}")
 
     def send_due(self, now: datetime | None = None) -> int:
         """Verstuur ingeplande berichten waarvan het tijdstip is aangebroken. Geeft het aantal verstuurde berichten."""
+        with self._lock:
+            return self._send_due(now)
+
+    def _send_due(self, now: datetime | None) -> int:
         sent = 0
         for row in self._store.due_drafts(now or datetime.now(timezone.utc)):
+            # Opnieuw ophalen: het concept kan net zijn geannuleerd of al verzonden.
+            current = self._store.get_draft(row["id"])
+            if current is None or current["status"] != SCHEDULED:
+                continue
             message = self._store.get_message(row["message_id"])
             try:
-                self._send(row["message_id"], message, row["id"], row["body"], how="ingepland verzonden")
+                self._send(row["message_id"], message, row["id"], current["body"], how="ingepland verzonden")
                 sent += 1
             except SendError:
                 # Terug naar de wachtrij, zodat je het zelf bekijkt in plaats van dat het steeds opnieuw mislukt.

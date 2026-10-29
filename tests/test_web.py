@@ -166,7 +166,7 @@ def test_failed_send_returns_502_and_keeps_draft(tmp_path):
 def test_reject_clears_queue_without_sending(seeded):
     client, _, connector = seeded
     draft_id = client.get("/api/messages", params={"pending": 1}).json()[0]["draft_id"]
-    assert client.post(f"/api/drafts/{draft_id}/reject").status_code == 200
+    assert client.post(f"/api/drafts/{draft_id}/reject", json={}).status_code == 200
     assert connector.sent == []
     assert client.get("/api/stats").json()["pending"] == 0
 
@@ -178,7 +178,7 @@ def test_sync_endpoint_runs_connectors(tmp_path):
 
     setup = _build(tmp_path, connector=InboxConnector())
     client, _, _ = setup
-    assert client.post("/api/sync").json() == {"processed": 1}
+    assert client.post("/api/sync", json={}).json() == {"processed": 1}
     assert client.get("/api/stats").json()["pending"] == 1
 
 
@@ -212,3 +212,11 @@ def test_webhook_refuses_everything_without_app_secret(tmp_path):
     signature = "sha256=" + hmac.new(b"", payload, hashlib.sha256).hexdigest()
     response = client.post("/webhook/whatsapp", content=payload, headers={"x-hub-signature-256": signature})
     assert response.status_code == 403
+
+
+def test_writes_without_json_are_refused_as_cross_site_requests(seeded):
+    client, _, connector = seeded
+    draft_id = client.get("/api/messages", params={"pending": 1}).json()[0]["draft_id"]
+    response = client.post(f"/api/drafts/{draft_id}/approve", content=b"", headers={"content-type": "text/plain"})
+    assert response.status_code == 415
+    assert connector.sent == []

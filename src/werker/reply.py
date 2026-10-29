@@ -86,14 +86,31 @@ class Revision:
 
 
 def apply_edits(text: str, edits: list[dict[str, str]]) -> str:
-    """Pas elke wijziging toe. Elke oude tekst moet precies één keer in het concept voorkomen."""
-    result = text
+    """Pas de wijzigingen toe op het oorspronkelijke concept.
+
+    Elke oude tekst moet precies één keer in het oorspronkelijke concept voorkomen, en de
+    wijzigingen mogen elkaar niet overlappen. Anders wordt er niets gewijzigd.
+    """
+    if not edits:
+        raise RevisionError("geen wijzigingen aangeleverd")
+    spans = []
     for edit in edits:
-        old, new = edit["old"], edit["new"]
-        if not old or result.count(old) != 1:
+        old = edit["old"]
+        if not old or text.count(old) != 1:
             raise RevisionError(f"tekst niet uniek of niet gevonden: {old[:60]!r}")
-        result = result.replace(old, new, 1)
-    return result
+        start = text.index(old)
+        spans.append((start, start + len(old), edit["new"]))
+    spans.sort()
+    for (_, end, _), (start, _, _) in zip(spans, spans[1:]):
+        if start < end:
+            raise RevisionError("wijzigingen overlappen elkaar")
+    result, cursor = [], 0
+    for start, end, new in spans:
+        result.append(text[cursor:start])
+        result.append(new)
+        cursor = end
+    result.append(text[cursor:])
+    return "".join(result)
 
 
 class Replier:

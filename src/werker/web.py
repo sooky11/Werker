@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 
 from werker.connectors.whatsapp import parse_webhook, verify_signature
+from werker.peppol import InvoiceError
+from werker.invoicing import validate_only
 from werker.pipeline import SendError
 from werker.runtime import Runtime
 from werker.store import WAITING, Store
@@ -32,6 +34,14 @@ class ClientIn(BaseModel):
 
 class MergeIn(BaseModel):
     into: int
+
+
+class InvoiceIn(BaseModel):
+    xml: str
+
+
+class BankIn(BaseModel):
+    csv: str
 
 
 class SettingsIn(BaseModel):
@@ -76,6 +86,23 @@ def _summary(row: Any) -> dict[str, Any]:
     }
 
 
+def _invoice_summary(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "number": row["number"],
+        "issue_date": row["issue_date"],
+        "due_date": row["due_date"],
+        "total_incl": row["total_incl"],
+        "currency": row["currency"],
+        "buyer_name": row["buyer_name"],
+        "buyer_endpoint": row["buyer_endpoint"],
+        "status": row["status"],
+        "paid_at": row["paid_at"],
+        "sent_at": row["sent_at"],
+        "last_error": row["last_error"],
+    }
+
+
 def _draft(store: Store, row: Any) -> dict[str, Any]:
     previous_body = None
     if row["revises"] is not None:
@@ -96,6 +123,16 @@ def _draft(store: Store, row: Any) -> dict[str, Any]:
 def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
     app = FastAPI(title="Werker")
     ui_auth = Depends(_auth_dependency(ui_password))
+
+    @app.middleware("http")
+    async def require_json_for_writes(request: Request, call_next):
+        # Een andere website kan alleen een formulier of tekst naar deze app sturen, geen JSON.
+        # Voor JSON is vooraf toestemming nodig, die deze app niet geeft. Zo kan een bezoek aan
+        # een andere pagina geen goedkeuring of verzending uitlokken.
+        if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.url.path.startswith("/api/"):
+            if not request.headers.get("content-type", "").startswith("application/json"):
+                return JSONResponse({"detail": "schrijven vereist application/json"}, status_code=415)
+        return await call_next(request)
 
     def store() -> Store:
         return runtime.store
@@ -243,13 +280,69 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc))
         return runtime.settings_view()
 
+    # ---------- Peppol-facturen ----------
+
+    @app.get("/api/invoices", dependencies=[ui_auth])
+    def invoices(status: str | None = None) -> list[dict[str, Any]]:
+        return [_invoice_summary(row) for row in runtime.store.list_invoices(status=status)]
+
+    @app.get("/api/invoices/{invoice_id}", dependencies=[ui_auth])
+    def invoice(invoice_id: int) -> dict[str, Any]:
+        row = runtime.store.get_invoice(invoice_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="factuur bestaat niet")
+        return {**_invoice_summary(row), "xml": row["xml"]}
+
+    @app.post("/api/invoices/import", dependencies=[ui_auth])
+    def import_invoice(payload: InvoiceIn) -> dict[str, Any]:
+        try:
+            invoice_id = runtime.invoicing.import_xml(payload.xml)
+        except InvoiceError as exc:
+            raise HTTPException(status_code=422, detail={"problems": exc.problems})
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return {"id": invoice_id}
+
+    @app.post("/api/invoices/validate", dependencies=[ui_auth])
+    def validate_invoice(payload: InvoiceIn) -> dict[str, Any]:
+        return validate_only(payload.xml)
+
+    @app.post("/api/invoices/bank", dependencies=[ui_auth])
+    def bank_import(payload: BankIn) -> dict[str, Any]:
+        try:
+            matched = runtime.invoicing.match_bank_file(payload.csv)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"matched": matched}
+
+    @app.post("/api/invoices/{invoice_id}/mark-paid", dependencies=[ui_auth])
+    def mark_paid(invoice_id: int) -> dict[str, Any]:
+        try:
+            return {"status": runtime.invoicing.mark_paid(invoice_id)}
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
+    @app.post("/api/invoices/{invoice_id}/send", dependencies=[ui_auth])
+    def send_invoice(invoice_id: int) -> dict[str, Any]:
+        try:
+            return {"status": runtime.invoicing.send(invoice_id)}
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.get("/api/peppol/map", dependencies=[ui_auth])
+    def peppol_map() -> dict[str, Any]:
+        return {"folder": str(runtime.invoicing.folder), "items": runtime.invoicing.map_items()}
+
     # ---------- WhatsApp-webhook ----------
 
     @app.get("/webhook/whatsapp")
     def verify(request: Request) -> PlainTextResponse:
         token = runtime.env().get("WHATSAPP_VERIFY_TOKEN", "")
         params = request.query_params
-        if token and params.get("hub.mode") == "subscribe" and params.get("hub.verify_token") == token:
+        given = params.get("hub.verify_token", "")
+        if token and params.get("hub.mode") == "subscribe" and secrets.compare_digest(given.encode(), token.encode()):
             return PlainTextResponse(params.get("hub.challenge", ""))
         raise HTTPException(status_code=403)
 

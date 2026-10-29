@@ -66,6 +66,24 @@ create table if not exists app_settings (
     key text primary key,
     value text not null
 );
+create table if not exists invoices (
+    id integer primary key autoincrement,
+    number text not null unique,
+    issue_date text not null,
+    due_date text,
+    currency text not null,
+    total_excl text not null,
+    total_vat text not null,
+    total_incl text not null,
+    buyer_name text not null,
+    buyer_endpoint text not null,
+    xml text not null,
+    status text not null,
+    paid_at text,
+    sent_at text,
+    last_error text not null default '',
+    created_at text not null
+);
 """
 
 # Kolommen die na een eerste versie zijn toegevoegd; oudere databases krijgen ze alsnog.
@@ -396,6 +414,57 @@ class Store:
             self._db.execute("update messages set client_id = ? where client_id = ?", (target_id, source_id))
             self._db.execute("update client_identifiers set client_id = ? where client_id = ?", (target_id, source_id))
             self._db.execute("delete from clients where id = ?", (source_id,))
+
+    # ---------- facturen ----------
+
+    @_locked
+    def add_invoice(self, number: str, fields: dict[str, Any], xml: str, status: str) -> int:
+        with self._db:
+            cursor = self._db.execute(
+                """insert into invoices (number, issue_date, due_date, currency, total_excl, total_vat,
+                   total_incl, buyer_name, buyer_endpoint, xml, status, created_at)
+                   values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    number,
+                    fields["issue_date"],
+                    fields["due_date"],
+                    fields["currency"],
+                    str(fields["total_excl"]),
+                    str(fields["total_vat"]),
+                    str(fields["total_incl"]),
+                    fields["buyer_name"],
+                    fields["buyer_endpoint"],
+                    xml,
+                    status,
+                    _now(),
+                ),
+            )
+        return cursor.lastrowid
+
+    @_locked
+    def get_invoice(self, invoice_id: int) -> sqlite3.Row | None:
+        return self._db.execute("select * from invoices where id = ?", (invoice_id,)).fetchone()
+
+    @_locked
+    def find_invoice_by_number(self, number: str) -> sqlite3.Row | None:
+        return self._db.execute("select * from invoices where number = ?", (number,)).fetchone()
+
+    @_locked
+    def list_invoices(self, status: str | None = None) -> list[sqlite3.Row]:
+        if status:
+            return self._db.execute(
+                "select * from invoices where status = ? order by issue_date desc, id desc", (status,)
+            ).fetchall()
+        return self._db.execute("select * from invoices order by issue_date desc, id desc").fetchall()
+
+    @_locked
+    def update_invoice(self, invoice_id: int, **values: Any) -> None:
+        allowed = {"status", "paid_at", "sent_at", "last_error"}
+        if set(values) - allowed:
+            raise ValueError(f"onbekend factuurveld: {set(values) - allowed}")
+        assignments = ", ".join(f"{key} = ?" for key in values)
+        with self._db:
+            self._db.execute(f"update invoices set {assignments} where id = ?", [*values.values(), invoice_id])
 
     # ---------- instellingen ----------
 

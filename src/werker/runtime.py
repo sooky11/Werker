@@ -8,6 +8,7 @@ Waarden komen uit drie plaatsen, in deze volgorde (later wint):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -24,6 +25,7 @@ from werker.cli import build_connectors, price_loader
 from werker.config import Settings
 from werker.pipeline import Pipeline
 from werker.prices import PriceBook
+from werker.invoicing import Invoicing
 from werker.reply import Replier
 from werker.store import Store
 
@@ -75,8 +77,32 @@ class Unconfigured:
         raise RuntimeError(self._reason)
 
 
+def _validate_values(values: Mapping[str, Any]) -> None:
+    """Controleer getallen en de aan/uit-schakelaars voordat ze worden opgeslagen."""
+    checks = {
+        "WERKER_MIN_CONFIDENCE": lambda v: 0 <= float(v) <= 1,
+        "WERKER_MAX_AUTO_AMOUNT": lambda v: float(v) >= 0,
+        "WERKER_SYNC_MINUTES": lambda v: float(v) >= 0,
+        "WERKER_AUTOSEND": lambda v: str(v) in ("true", "false"),
+        "WERKER_IMESSAGE": lambda v: str(v) in ("true", "false"),
+    }
+    for key, value in values.items():
+        check = checks.get(key)
+        if value is None or check is None:
+            continue
+        try:
+            valid = check(value)
+        except (TypeError, ValueError):
+            valid = False
+        if not valid:
+            raise ValueError(f"ongeldige waarde voor {key}: {value!r}")
+
+
 def mailbox_secret_key(name: str) -> str:
-    return "MAILBOX_" + re.sub(r"\W", "_", name).upper() + "_PW"
+    """Unieke sleutel per mailbox: de naam wordt opgeschoond, plus een korte hash zodat 'a.b' en 'a_b' niet botsen."""
+    readable = re.sub(r"\W", "_", name).upper()
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
+    return f"MAILBOX_{readable}_{digest}_PW"
 
 
 class Runtime:
@@ -85,6 +111,7 @@ class Runtime:
         self.home = home
         self._base = dict(base_env)
         self.pipeline: Pipeline | None = None
+        self.invoicing = Invoicing(store, home / "peppol-map")
         self._lock = threading.Lock()
 
     # ---------- opslag ----------
@@ -100,7 +127,10 @@ class Runtime:
 
     def _write_secrets(self, data: dict[str, str]) -> None:
         self._secrets_path.parent.mkdir(parents=True, exist_ok=True)
-        self._secrets_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # Het bestand krijgt meteen de juiste rechten, zodat het nooit even open te lezen is.
+        descriptor = os.open(self._secrets_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(data, indent=2))
         try:
             os.chmod(self._secrets_path, 0o600)
         except OSError:
@@ -133,6 +163,8 @@ class Runtime:
             "values": values,
             "mailboxes": mailboxes,
             "secrets_set": {key: bool(env.get(key)) for key in SECRET_KEYS},
+            "peppol_map": str(self.invoicing.folder),
+            "peppol_connected": self.invoicing.access_point is not None,
         }
 
     # ---------- wijzigen ----------
@@ -144,26 +176,30 @@ class Runtime:
         mailboxes: list[dict[str, Any]] | None = None,
     ) -> None:
         with self._lock:
-            if values:
-                unknown = set(values) - set(SETTING_KEYS)
-                if unknown:
-                    raise ValueError(f"onbekende instelling: {', '.join(sorted(unknown))}")
-                self.store.set_settings({k: None if v is None else str(v) for k, v in values.items() if k != "WERKER_MAILBOXES"})
+            # Eerst alles controleren, dan pas opslaan: een fout laat de instellingen ongemoeid.
+            values = dict(values or {})
+            unknown = set(values) - set(SETTING_KEYS)
+            if unknown:
+                raise ValueError(f"onbekende instelling: {', '.join(sorted(unknown))}")
+            if set(secrets or {}) - set(SECRET_KEYS):
+                raise ValueError(f"onbekend geheim: {', '.join(sorted(set(secrets) - set(SECRET_KEYS)))}")
+            _validate_values(values)
             stored_secrets = self._read_secrets()
-            if secrets:
-                for key, value in secrets.items():
-                    if key not in SECRET_KEYS:
-                        raise ValueError(f"onbekend geheim: {key}")
-                    if value:
-                        stored_secrets[key] = value
-                    else:
-                        stored_secrets.pop(key, None)
+            for key, value in (secrets or {}).items():
+                if value:
+                    stored_secrets[key] = value
+                else:
+                    stored_secrets.pop(key, None)
+            cleaned_mailboxes = None
             if mailboxes is not None:
-                self._store_mailboxes(mailboxes, stored_secrets)
+                cleaned_mailboxes = self._clean_mailboxes(mailboxes, stored_secrets)
+            self.store.set_settings({k: None if v is None else str(v) for k, v in values.items()})
+            if cleaned_mailboxes is not None:
+                self.store.set_settings({"WERKER_MAILBOXES": json.dumps(cleaned_mailboxes)})
             self._write_secrets(stored_secrets)
         self.reconfigure()
 
-    def _store_mailboxes(self, mailboxes: list[dict[str, Any]], secrets: dict[str, str]) -> None:
+    def _clean_mailboxes(self, mailboxes: list[dict[str, Any]], secrets: dict[str, str]) -> list[dict[str, Any]]:
         cleaned = []
         names = set()
         for entry in mailboxes:
@@ -191,9 +227,10 @@ class Runtime:
                     "folder": str(entry.get("folder") or "INBOX"),
                 }
             )
-        for key in [k for k in secrets if k.startswith("MAILBOX_") and k not in {c["password_env"] for c in cleaned}]:
+        keep = {c["password_env"] for c in cleaned}
+        for key in [k for k in secrets if k.startswith("MAILBOX_") and k not in keep]:
             secrets.pop(key)
-        self.store.set_settings({"WERKER_MAILBOXES": json.dumps(cleaned)})
+        return cleaned
 
     # ---------- de app bouwen en bijwerken ----------
 
@@ -235,6 +272,7 @@ def run_background(runtime: Runtime, stop: threading.Event, tick_seconds: float 
             try:
                 if runtime.pipeline is None:
                     continue
+                runtime.invoicing.dispatch()
                 minutes = runtime.sync_minutes()
                 if minutes > 0 and time.monotonic() - last_sync >= minutes * 60:
                     runtime.pipeline.sync()
