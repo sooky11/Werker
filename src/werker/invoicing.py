@@ -4,14 +4,23 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from werker.models import Message
 from werker.peppol import AccessPoint, InvoiceError, parse_bank_csv, parse_ubl, remove_from_map, write_to_map
 from werker.prices import find_amounts
 from werker.store import Store
+from werker.store_billing import (
+    REMINDER_EXPIRED,
+    REMINDER_NO_ADDRESS,
+    REMINDER_PENDING,
+    REMINDER_REJECTED,
+    REMINDER_SENT,
+    REMINDER_WAITING,
+)
 
 log = logging.getLogger(__name__)
 
@@ -19,10 +28,50 @@ WAITING_PAYMENT = "wacht op betaling"
 TO_SEND = "te verzenden"
 SENT = "verzonden"
 IN_MAP = "in map"
+REMINDER_INTERVAL = timedelta(days=7)
 
 
 class NotConfigured(RuntimeError):
     pass
+
+
+class ReminderSendError(RuntimeError):
+    """Het verzenden van een betalingsherinnering is mislukt; de reden staat ook in het auditlog."""
+
+
+def _parse_date(text: str | None) -> date | None:
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def is_overdue(invoice, today: date) -> bool:
+    """Verlopen: de vervaldatum ligt vóór vandaag."""
+    due = _parse_date(invoice["due_date"])
+    return due is not None and due < today
+
+
+def reminder_text(invoice) -> tuple[str, str]:
+    """Onderwerp en tekst van een betalingsherinnering, in het Nederlands."""
+    amount = f"€ {Decimal(invoice['total_incl']):.2f}".replace(".", ",")
+    due = _parse_date(invoice["due_date"])
+    due_text = due.strftime("%d-%m-%Y") if due else "onbekend"
+    subject = f"Betalingsherinnering factuur {invoice['number']}"
+    body = (
+        f"Beste {invoice['buyer_name']},\n\n"
+        f"Volgens onze administratie is factuur {invoice['number']} van {amount} nog niet betaald. "
+        f"De betaaltermijn liep af op {due_text}.\n\n"
+        "Wilt u het bedrag zo snel mogelijk overmaken? Heeft u al betaald, dan kunt u deze e-mail negeren.\n\n"
+        "Met vriendelijke groet"
+    )
+    return subject, body
+
+
+def _utc(moment: datetime) -> datetime:
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
 
 
 class Invoicing:
@@ -30,6 +79,8 @@ class Invoicing:
         self._store = store
         self.folder = folder
         self.access_point = access_point
+        # Het mailkanaal waarmee herinneringen naar klanten gaan (een mail:-connector); None zolang er geen mailbox is.
+        self.mailer: Any = None
         self._lock = threading.RLock()
 
     # ---------- importeren ----------
@@ -177,6 +228,112 @@ class Invoicing:
             if self.send(row["id"]) == SENT:
                 sent += 1
         return sent
+
+    # ---------- betalingsherinneringen ----------
+
+    def collect_reminders(self, now: datetime | None = None) -> list[int]:
+        """Maak herinneringen voor verlopen, onbetaalde facturen. Veilig om vaak aan te roepen.
+
+        Per factuur komt er hooguit één herinnering per zeven dagen. Heeft de klant geen e-mailadres,
+        dan komt de herinnering op 'geen adres bekend'. Geeft de nieuwe herinnering-ids.
+        """
+        with self._lock:
+            return self._collect_reminders(_utc(now or datetime.now(timezone.utc)))
+
+    def _collect_reminders(self, now: datetime) -> list[int]:
+        self._expire_reminders(now)
+        created = []
+        for invoice in self._store.list_invoices(status=WAITING_PAYMENT):
+            if not is_overdue(invoice, now.date()):
+                continue
+            last = self._store.last_reminder_at(invoice["id"])
+            if last is not None and now - datetime.fromisoformat(last) < REMINDER_INTERVAL:
+                continue
+            recipient = self._client_email(invoice["client_id"])
+            subject, body = reminder_text(invoice)
+            status = REMINDER_WAITING if recipient else REMINDER_NO_ADDRESS
+            created.append(
+                self._store.add_reminder(
+                    invoice["id"], status, recipient or "", subject, body, now.isoformat()
+                )
+            )
+            self._store.audit(None, "herinnering aangemaakt", f"{invoice['number']}: {status}")
+        return created
+
+    def _expire_reminders(self, now: datetime) -> None:
+        """Een herinnering waarvan de factuur intussen betaald is, is niet meer nodig."""
+        for row in self._store.all_pending_reminders():
+            if row["invoice_status"] != WAITING_PAYMENT:
+                self._store.update_reminder(row["id"], status=REMINDER_EXPIRED, decided_at=now.isoformat())
+                self._store.audit(None, "herinnering vervallen", f"factuur {row['invoice_id']} is niet meer openstaand")
+
+    def _client_email(self, client_id: int | None) -> str | None:
+        if client_id is None:
+            return None
+        emails = sorted(i["value"] for i in self._store.client_identifiers(client_id) if i["kind"] == "email")
+        return emails[0] if emails else None
+
+    def approve_reminder(self, reminder_id: int, body: str | None = None) -> None:
+        """Keur een herinnering goed en verstuur haar naar het e-mailadres van de klant.
+
+        Met body wordt de tekst eerst aangepast. Bij een verzendfout blijft de herinnering staan.
+        """
+        with self._lock:
+            self._approve_reminder(reminder_id, body)
+
+    def _approve_reminder(self, reminder_id: int, body: str | None) -> None:
+        row = self._store.get_reminder(reminder_id)
+        if row is None:
+            raise LookupError(f"herinnering {reminder_id} bestaat niet")
+        if row["status"] not in REMINDER_PENDING:
+            raise ValueError(f"herinnering staat op '{row['status']}'")
+        invoice = self._get(row["invoice_id"])
+        now = datetime.now(timezone.utc)
+        if invoice["status"] != WAITING_PAYMENT:
+            self._store.update_reminder(reminder_id, status=REMINDER_EXPIRED, decided_at=now.isoformat())
+            raise ValueError("de factuur staat niet meer op 'wacht op betaling'; de herinnering vervalt")
+        recipient = self._client_email(invoice["client_id"])
+        if recipient is None:
+            self._store.update_reminder(reminder_id, status=REMINDER_NO_ADDRESS)
+            raise ValueError("geen e-mailadres bekend voor deze klant; voeg er bij de klant een toe")
+        text = body if body is not None else row["body"]
+        if self.mailer is None:
+            reason = "geen mailbox gekoppeld; koppel er een bij Instellingen"
+            self._store.update_reminder(reminder_id, status=REMINDER_WAITING, recipient=recipient, body=text, last_error=reason)
+            raise ReminderSendError(reason)
+        self._store.update_reminder(reminder_id, status=REMINDER_WAITING, recipient=recipient, body=text)
+        # Hetzelfde bericht-vorm als bij een binnenkomende mail, zodat de bestaande mail-connector het kan versturen.
+        message = Message(
+            channel="factuur",
+            external_id=f"herinnering-{reminder_id}",
+            thread_id=f"herinnering-{reminder_id}",
+            sender=recipient,
+            subject=row["subject"],
+            body=text,
+            received_at=now,
+        )
+        try:
+            self.mailer.send(message, text)
+        except Exception as exc:
+            self._store.update_reminder(reminder_id, last_error=str(exc))
+            self._store.audit(None, "herinnering mislukt", f"{invoice['number']}: {exc}")
+            raise ReminderSendError(f"verzenden mislukt: {exc}") from exc
+        self._store.update_reminder(
+            reminder_id, status=REMINDER_SENT, sent_at=now.isoformat(), decided_at=now.isoformat(), last_error=""
+        )
+        self._store.audit(None, "herinnering verzonden", f"{invoice['number']} naar {recipient}")
+
+    def reject_reminder(self, reminder_id: int) -> None:
+        with self._lock:
+            row = self._store.get_reminder(reminder_id)
+            if row is None:
+                raise LookupError(f"herinnering {reminder_id} bestaat niet")
+            if row["status"] not in REMINDER_PENDING:
+                raise ValueError(f"herinnering staat op '{row['status']}'; ze kan niet meer worden afgewezen")
+            self._store.update_reminder(
+                reminder_id, status=REMINDER_REJECTED, decided_at=datetime.now(timezone.utc).isoformat()
+            )
+            self._store.audit(None, "herinnering afgewezen", self._get(row["invoice_id"])["number"])
 
     # ---------- de map ----------
 

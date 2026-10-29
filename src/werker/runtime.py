@@ -290,6 +290,7 @@ class Runtime:
     def reconfigure(self) -> None:
         components = self._components()
         self.invoicing.access_point = build_access_point(self.env())
+        self.invoicing.mailer = next((c for n, c in components["connectors"].items() if n.startswith("mail:")), None)
         if self.pipeline is None:
             self.pipeline = Pipeline(self.store, **components)
         else:
@@ -313,6 +314,7 @@ def run_background(runtime: Runtime, stop: threading.Event, tick_seconds: float 
                     last_sync = time.monotonic()
                     days = int(runtime.env().get("WERKER_RETENTION_DAYS", "0") or 0)
                     privacy.purge_expired(runtime.store, datetime.now(timezone.utc), days)
+                    runtime.invoicing.collect_reminders()
                 else:
                     runtime.pipeline.send_due()
             except Exception:
