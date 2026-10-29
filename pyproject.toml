@@ -1,0 +1,30 @@
+[project]
+name = "werker"
+version = "0.1.0"
+description = "Sorteert zakelijke mail en berichten en stelt antwoorden voor, met prijzen uit een vaste lijst."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40",
+    "fastapi>=0.110",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+gmail = ["google-api-python-client>=2.0", "google-auth>=2.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+werker = "werker.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

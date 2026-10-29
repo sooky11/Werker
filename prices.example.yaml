@@ -1,0 +1,18 @@
+# Voorbeeld van de prijslijst. In productie komt deze uit een Google Sheet (WERKER_PRICES_CSV_URL).
+# Kolommen: product, prijs, eenheid, toelichting, actief
+- product: Herenknipbeurt
+  prijs: "25,00"
+  eenheid: behandeling
+  toelichting: inclusief wassen
+  actief: ja
+- product: Kinderknipbeurt
+  prijs: "15,00"
+  eenheid: behandeling
+  actief: ja
+- product: Kleuren
+  prijs: "65,00"
+  eenheid: behandeling
+  actief: ja
+- product: Oud tarief
+  prijs: "10,00"
+  actief: nee
