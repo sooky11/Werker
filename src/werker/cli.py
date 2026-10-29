@@ -52,6 +52,28 @@ def mailbox_connectors(env: Mapping[str, str]) -> list[IMAPConnector]:
     return connectors
 
 
+def outlook_token_cache_path(env: Mapping[str, str]) -> str:
+    """Waar de Outlook-tokens staan: WERKER_OUTLOOK_TOKEN_CACHE, anders naast de database."""
+    explicit = env.get("WERKER_OUTLOOK_TOKEN_CACHE", "")
+    if explicit:
+        return explicit
+    return str(Path(env.get("WERKER_DB", "werker.db")).resolve().parent / "werker-outlook-token.json")
+
+
+def outlook_connector(env: Mapping[str, str]) -> Connector | None:
+    """Outlook/Microsoft 365 werkt alleen na 'werker outlook-login' en met een client-ID van de Azure-app."""
+    client_id = env.get("WERKER_OUTLOOK_CLIENT_ID", "")
+    if not client_id:
+        return None
+    cache_path = outlook_token_cache_path(env)
+    if not Path(cache_path).exists():
+        log.warning("Outlook overgeslagen: draai eerst 'werker outlook-login'")
+        return None
+    from werker.connectors.outlook import OutlookConnector, token_provider_from_cache
+
+    return OutlookConnector(token_provider_from_cache(client_id, cache_path))
+
+
 def build_connectors(env: Mapping[str, str]) -> dict[str, Connector]:
     connectors: dict[str, Connector] = {}
     for connector in mailbox_connectors(env):
@@ -71,6 +93,9 @@ def build_connectors(env: Mapping[str, str]) -> dict[str, Connector]:
         connectors["mail:gmail"] = GmailConnector(
             build_service(env["WERKER_GMAIL_TOKEN"]), sender_address=env["WERKER_SENDER_ADDRESS"]
         )
+    outlook = outlook_connector(env)
+    if outlook is not None:
+        connectors[outlook.name] = outlook
     if env.get("WHATSAPP_TOKEN"):
         from werker.connectors.whatsapp import WhatsAppConnector
 
@@ -142,6 +167,25 @@ def cmd_sync(settings: Settings, _: argparse.Namespace) -> int:
     store = Store(settings.db_path)
     pipeline = build_pipeline(settings, store, build_connectors(os.environ))
     print(f"{pipeline.sync()} nieuwe berichten verwerkt")
+    return 0
+
+
+def cmd_outlook_login(settings: Settings, _: argparse.Namespace) -> int:
+    from werker.connectors.outlook import login
+
+    # Ook instellingen uit het instelscherm tellen mee, niet alleen de omgeving.
+    stored = {k: v for k, v in Store(settings.db_path).get_settings().items() if v}
+    env = {**os.environ, **stored}
+    client_id = env.get("WERKER_OUTLOOK_CLIENT_ID", "")
+    if not client_id:
+        print("Vul eerst de client-ID van je Azure-app in (WERKER_OUTLOOK_CLIENT_ID).", file=sys.stderr)
+        return 1
+    try:
+        login(client_id, outlook_token_cache_path(env))
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print("Ingelogd bij Outlook. Nieuwe berichten worden vanaf nu meegenomen.")
     return 0
 
 
@@ -232,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     reject = sub.add_parser("reject", help="Wijs een concept af.")
     reject.add_argument("draft_id", type=int)
 
+    sub.add_parser("outlook-login", help="Log in bij Outlook (Microsoft 365) met een inlogcode.")
     serve = sub.add_parser("serve", help="Start de inbox-webpagina en de WhatsApp-webhook.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
@@ -245,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
         "approve": cmd_approve,
         "reject": cmd_reject,
         "serve": cmd_serve,
+        "outlook-login": cmd_outlook_login,
     }
     args = parser.parse_args(argv)
     return handlers[args.command](Settings.from_env(), args)
