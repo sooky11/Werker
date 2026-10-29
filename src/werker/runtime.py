@@ -21,6 +21,7 @@ from typing import Any, Mapping
 import anthropic
 
 from werker.classify import Classifier
+from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
 from werker.pipeline import Pipeline
@@ -31,7 +32,7 @@ from werker.store import Store
 
 log = logging.getLogger(__name__)
 
-SECRET_KEYS = ("ANTHROPIC_API_KEY", "WHATSAPP_TOKEN", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN")
+SECRET_KEYS = ("ANTHROPIC_API_KEY", "WHATSAPP_TOKEN", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN", "PEPPOL_API_KEY")
 SETTING_KEYS = (
     "WERKER_AUTOSEND",
     "WERKER_AUTOSEND_INTENTS",
@@ -44,6 +45,8 @@ SETTING_KEYS = (
     "WERKER_IMESSAGE",
     "WHATSAPP_PHONE_NUMBER_ID",
     "WERKER_MAILBOXES",
+    "PEPPOL_PROVIDER",
+    "PEPPOL_LEGAL_ENTITY_ID",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -57,6 +60,8 @@ DEFAULTS = {
     "WERKER_IMESSAGE": "true",
     "WHATSAPP_PHONE_NUMBER_ID": "",
     "WERKER_MAILBOXES": "[]",
+    "PEPPOL_PROVIDER": "",
+    "PEPPOL_LEGAL_ENTITY_ID": "",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
@@ -257,6 +262,7 @@ class Runtime:
 
     def reconfigure(self) -> None:
         components = self._components()
+        self.invoicing.access_point = build_access_point(self.env())
         if self.pipeline is None:
             self.pipeline = Pipeline(self.store, **components)
         else:

@@ -410,6 +410,7 @@
     WHATSAPP_TOKEN: "s-watoken",
     WHATSAPP_APP_SECRET: "s-waapp",
     WHATSAPP_VERIFY_TOKEN: "s-waverify",
+    PEPPOL_API_KEY: "s-pepkey",
   };
   const INVOICE_TABS = [
     { slug: "wacht-op-betaling", label: "Wacht op betaling", status: "wacht op betaling" },
@@ -1326,6 +1327,16 @@
           "Laat leeg om het bestaande geheim te behouden."),
         field("s-waverify", "Verificatietoken (WHATSAPP_VERIFY_TOKEN)", secretInput("s-waverify", "WHATSAPP_VERIFY_TOKEN"),
           "Laat leeg om het bestaande token te behouden."),
+        h("h3", { class: "card-subtitle", text: "Peppol" }),
+        field("s-pepprov", "Access point",
+          h("select", { id: "s-pepprov", class: "input" },
+            h("option", { value: "", selected: !v.PEPPOL_PROVIDER, text: "Geen (facturen gaan naar de map)" }),
+            h("option", { value: "storecove", selected: v.PEPPOL_PROVIDER === "storecove", text: "Storecove" }))),
+        field("s-pepleg", "Legal entity ID",
+          h("input", { id: "s-pepleg", class: "input", type: "text", inputmode: "numeric", value: v.PEPPOL_LEGAL_ENTITY_ID ?? "" }),
+          "Het nummer van je bedrijf bij het access point."),
+        field("s-pepkey", "API-sleutel (PEPPOL_API_KEY)", secretInput("s-pepkey", "PEPPOL_API_KEY"),
+          "Laat leeg om de bestaande sleutel te behouden."),
       ),
 
       settingsSection("Mailboxen",
@@ -1360,6 +1371,8 @@
       WERKER_PRICES_CSV_URL: val("s-prices"),
       WERKER_IMESSAGE: checked("s-imessage") ? "true" : "false",
       WHATSAPP_PHONE_NUMBER_ID: val("s-waid"),
+      PEPPOL_PROVIDER: val("s-pepprov"),
+      PEPPOL_LEGAL_ENTITY_ID: val("s-pepleg"),
     };
     // Geheimen: alleen meesturen als er iets is ingetypt.
     const secrets = {};
