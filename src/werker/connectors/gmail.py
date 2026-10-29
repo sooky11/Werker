@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 from typing import Any
 
 from werker.connectors.mail import CHANNEL, build_reply, parse_email
@@ -20,6 +21,18 @@ def build_service(token_path: str) -> Any:
 
     credentials = Credentials.from_authorized_user_file(token_path, SCOPES)
     return build("gmail", "v1", credentials=credentials, cache_discovery=False)
+
+
+def login(credentials_path: str, token_path: str) -> None:
+    """Eenmalige inlogstap: opent een browser en slaat het OAuth-token op in token_path.
+
+    credentials_path is het OAuth-clientbestand (type "Desktop app") uit de Google Cloud Console.
+    """
+    from google_auth_oauthlib.flow import InstalledAppFlow
+
+    flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
+    credentials = flow.run_local_server(port=0)
+    Path(token_path).write_text(credentials.to_json(), encoding="utf-8")
 
 
 def _decode_raw(data: str) -> bytes:
