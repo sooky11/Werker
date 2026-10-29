@@ -15,6 +15,7 @@ import os
 import re
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -24,6 +25,7 @@ from werker.classify import Classifier
 from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
+from werker import privacy
 from werker.pipeline import Pipeline
 from werker.prices import PriceBook
 from werker.invoicing import Invoicing
@@ -48,6 +50,7 @@ SETTING_KEYS = (
     "PEPPOL_PROVIDER",
     "PEPPOL_LEGAL_ENTITY_ID",
     "WERKER_THEME",
+    "WERKER_RETENTION_DAYS",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -64,6 +67,7 @@ DEFAULTS = {
     "PEPPOL_PROVIDER": "",
     "PEPPOL_LEGAL_ENTITY_ID": "",
     "WERKER_THEME": "editorieel",
+    "WERKER_RETENTION_DAYS": "0",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
@@ -93,6 +97,7 @@ def _validate_values(values: Mapping[str, Any]) -> None:
         "WERKER_AUTOSEND": lambda v: str(v) in ("true", "false"),
         "WERKER_IMESSAGE": lambda v: str(v) in ("true", "false"),
         "WERKER_THEME": lambda v: str(v) in ("editorieel", "donker", "zacht"),
+        "WERKER_RETENTION_DAYS": lambda v: re.fullmatch(r"\d+", str(v).strip()) is not None,
     }
     for key, value in values.items():
         check = checks.get(key)
@@ -287,6 +292,8 @@ def run_background(runtime: Runtime, stop: threading.Event, tick_seconds: float 
                 if minutes > 0 and time.monotonic() - last_sync >= minutes * 60:
                     runtime.pipeline.sync()
                     last_sync = time.monotonic()
+                    days = int(runtime.env().get("WERKER_RETENTION_DAYS", "0") or 0)
+                    privacy.purge_expired(runtime.store, datetime.now(timezone.utc), days)
                 else:
                     runtime.pipeline.send_due()
             except Exception:
