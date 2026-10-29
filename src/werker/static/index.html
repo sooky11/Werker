@@ -228,6 +228,26 @@
   .link:hover { text-decoration: underline; }
   .back { display: inline-block; font-size: 14px; margin-bottom: 4px; }
   .mt { margin-top: 12px; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .seg-btn {
+    height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); font-size: 13px; font-weight: 550;
+  }
+  .seg-btn:hover { background: var(--surface-2); }
+  .seg-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 650; }
+  .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0; }
+  .kv dt { color: var(--muted); font-size: 14px; }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .path-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 0; }
+  code.path {
+    font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2);
+    border: 1px solid var(--border); padding: 4px 8px; border-radius: 8px; overflow-wrap: anywhere;
+  }
+  pre.xml {
+    white-space: pre; overflow: auto; max-height: 420px; max-width: 100%; margin: 10px 0 0;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+    font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
   .card-subtitle { margin: 14px 0 6px; font-size: 14px; font-weight: 650; }
   kbd {
     font: 12px var(--font); padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border);
@@ -303,7 +323,7 @@
       border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 5;
     }
     .nav-title { display: none; }
-    #nav, #nav-clients { display: contents; }
+    #nav, #nav-clients, #nav-peppol { display: contents; }
     .nav-item { width: auto; white-space: nowrap; border: 1px solid var(--border); background: var(--surface); }
     .list { border-right: 0; overflow: visible; }
     .list-head { position: static; }
@@ -343,12 +363,15 @@
     <div id="nav"></div>
     <div class="nav-title">Klanten</div>
     <div id="nav-clients"></div>
+    <div class="nav-title">Peppol</div>
+    <div id="nav-peppol"></div>
   </nav>
 
   <section class="list" aria-label="Lijst">
     <div class="list-head">
       <h2 id="list-title">Wacht op goedkeuring</h2>
       <p id="list-sub">Laden…</p>
+      <div class="seg" id="seg" hidden></div>
     </div>
     <div id="items"></div>
   </section>
@@ -387,6 +410,15 @@
     WHATSAPP_APP_SECRET: "s-waapp",
     WHATSAPP_VERIFY_TOKEN: "s-waverify",
   };
+  const INVOICE_TABS = [
+    { slug: "wacht-op-betaling", label: "Wacht op betaling", status: "wacht op betaling" },
+    { slug: "te-verzenden", label: "Te verzenden", status: "te verzenden" },
+    { slug: "verzonden", label: "Verzonden", status: "verzonden" },
+    { slug: "in-map", label: "In map", status: "in map" },
+  ];
+  const INVOICE_STATUS_CLASS = {
+    "wacht op betaling": "wacht", "te verzenden": "factuur", "verzonden": "prijsvraag", "in map": "klacht",
+  };
   const PLACEHOLDER_SET = "ingesteld — laat leeg om te houden";
   const PLACEHOLDER_UNSET = "niet ingesteld";
 
@@ -401,8 +433,8 @@
   }
 
   const state = {
-    listMode: "messages",   // "messages" | "clients"
-    reader: "empty",        // "empty" | "message" | "client" | "settings"
+    listMode: "messages",   // "messages" | "clients" | "invoices"
+    reader: "empty",        // "empty" | "message" | "client" | "settings" | "peppol" | "invoice"
     tab: "pending",
     query: "",
     messages: [],
@@ -410,6 +442,12 @@
     selected: null,         // id (als tekst) van het geopende bericht
     selectedClient: null,   // id (als tekst) van de geopende klant
     stats: null,
+    invTab: "wacht-op-betaling",
+    invoices: [],
+    mapItems: [],
+    mapFolder: "",
+    invoiceCount: null,
+    selectedInvoice: null,
     loadId: 0,
     routeId: 0,
   };
@@ -443,9 +481,16 @@
     try { data = await response.json(); } catch (_) { /* leeg antwoord */ }
     if (!response.ok) {
       const detail = data && data.detail;
-      const message = typeof detail === "string" ? detail : (response.statusText || "Er ging iets mis");
+      let message = response.statusText || "Er ging iets mis";
+      let problems = [];
+      if (typeof detail === "string") message = detail;
+      else if (detail && typeof detail === "object") {
+        problems = Array.isArray(detail.problems) ? detail.problems : [];
+        message = detail.message || (problems.length ? "De factuur is niet geldig." : message);
+      }
       const error = new Error(message);
       error.status = response.status;
+      error.problems = problems;
       throw error;
     }
     return data;
@@ -557,11 +602,15 @@
       tab.id === "pending",
     )));
     $("#nav-clients").replaceChildren(navButton("Alle klanten", "#klanten", state.listMode === "clients"));
+    $("#nav-peppol").replaceChildren(navButton("Peppol-facturen", "#peppol", state.listMode === "invoices", state.invoiceCount, true));
+    $("#seg").hidden = state.listMode !== "invoices";
+    if (state.listMode === "invoices") renderSegment();
     $("#settings-btn").setAttribute("aria-pressed", String(state.reader === "settings"));
   }
 
   function updatePlaceholder() {
-    $("#q").placeholder = state.listMode === "clients" ? "Zoek klanten" : "Zoeken";
+    $("#q").placeholder = state.listMode === "clients" ? "Zoek klanten"
+      : state.listMode === "invoices" ? "Zoek facturen" : "Zoeken";
   }
 
   function currentTab() {
@@ -574,6 +623,9 @@
     });
     document.querySelectorAll(".item[data-client]").forEach((el) => {
       el.setAttribute("aria-selected", el.dataset.client === state.selectedClient ? "true" : "false");
+    });
+    document.querySelectorAll(".item[data-invoice]").forEach((el) => {
+      el.setAttribute("aria-selected", el.dataset.invoice === state.selectedInvoice ? "true" : "false");
     });
   }
 
@@ -1354,10 +1406,311 @@
     }
   }
 
+  /* ---------- Peppol-facturen ---------- */
+
+  const money = (amount, currency) => {
+    const n = Number(amount);
+    if (!Number.isFinite(n)) return "";
+    try {
+      return new Intl.NumberFormat("nl-NL", { style: "currency", currency: currency || "EUR" }).format(n);
+    } catch (_) {
+      return `${n.toFixed(2)} ${currency || ""}`.trim();
+    }
+  };
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const value = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00` : iso;
+    return new Date(value).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  function statusChip(status) {
+    return h("span", { class: `chip ${INVOICE_STATUS_CLASS[status] || ""}`, text: status });
+  }
+
+  function readFileText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Kon het bestand niet lezen."));
+      reader.readAsText(file);
+    });
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Pad gekopieerd");
+    } catch (_) {
+      toast("Kopiëren lukt niet; selecteer het pad handmatig.", true);
+    }
+  }
+
+  function renderSegment() {
+    $("#seg").replaceChildren(...INVOICE_TABS.map((tab) => h("button", {
+      class: "seg-btn",
+      type: "button",
+      "aria-pressed": tab.slug === state.invTab ? "true" : "false",
+      text: tab.label,
+      onclick: () => {
+        const hash = `peppol/${tab.slug}`;
+        if (location.hash === `#${hash}`) onRoute();
+        else location.hash = hash;
+      },
+    })));
+  }
+
+  async function loadInvoiceList() {
+    const loadId = ++state.loadId;
+    const tab = INVOICE_TABS.find((t) => t.slug === state.invTab) || INVOICE_TABS[0];
+    $("#list-title").textContent = "Peppol-facturen";
+    try {
+      if (tab.slug === "in-map") {
+        const data = await api("/api/peppol/map");
+        if (loadId !== state.loadId) return;
+        state.mapItems = data.items || [];
+        state.mapFolder = data.folder || "";
+      } else {
+        const invoices = await api(`/api/invoices?status=${encodeURIComponent(tab.status)}`);
+        if (loadId !== state.loadId) return;
+        state.invoices = invoices;
+      }
+      renderInvoiceView();
+    } catch (error) {
+      if (loadId !== state.loadId) return;
+      $("#list-sub").textContent = `Kon de facturen niet laden: ${error.message}`;
+    }
+  }
+
+  function matchesQuery(...fields) {
+    if (!state.query) return true;
+    const q = state.query.toLowerCase();
+    return fields.some((f) => String(f || "").toLowerCase().includes(q));
+  }
+
+  function renderInvoiceView() {
+    const tab = INVOICE_TABS.find((t) => t.slug === state.invTab) || INVOICE_TABS[0];
+    if (tab.slug === "in-map") return renderMapList();
+    const items = state.invoices.filter((inv) => matchesQuery(inv.number, inv.buyer_name));
+    const n = items.length;
+    $("#list-sub").textContent = n === 0
+      ? (state.query ? "Geen resultaten" : "Geen facturen in deze status")
+      : `${n} ${n === 1 ? "factuur" : "facturen"}`;
+    if (n === 0) {
+      $("#items").replaceChildren(h("div", { class: "loading", text: state.query ? "Geen facturen gevonden." : "Geen facturen in deze status." }));
+      return;
+    }
+    $("#items").replaceChildren(...items.map((inv) => h("button", {
+      class: "item",
+      type: "button",
+      role: "option",
+      "aria-selected": String(inv.id) === state.selectedInvoice ? "true" : "false",
+      "data-invoice": String(inv.id),
+      onclick: () => { location.hash = `factuur/${encodeURIComponent(inv.id)}`; },
+    },
+      h("div", { class: "item-top" },
+        h("span", { class: "item-sender", text: inv.buyer_name || "(onbekende koper)" }),
+        h("span", { text: money(inv.total_incl, inv.currency) }),
+      ),
+      h("div", { class: "item-subject", text: `Factuur ${inv.number}` }),
+      h("div", { class: "item-summary", text: inv.due_date ? `Vervalt ${formatDate(inv.due_date)}` : "" }),
+      h("div", { class: "chip-row" }, statusChip(inv.status)),
+    )));
+  }
+
+  function renderMapList() {
+    const items = state.mapItems.filter((item) => matchesQuery(item.number, item.reason));
+    const n = items.length;
+    $("#list-sub").textContent = n === 0
+      ? (state.query ? "Geen resultaten" : "Map is leeg")
+      : `${n} ${n === 1 ? "factuur" : "facturen"} in ${state.mapFolder}`;
+    if (n === 0) {
+      $("#items").replaceChildren(h("div", { class: "loading", text: state.query ? "Geen facturen gevonden." : "Er staan geen facturen in de map." }));
+      return;
+    }
+    $("#items").replaceChildren(...items.map((item) => {
+      const retry = h("button", { class: "btn small", type: "button", text: "Opnieuw proberen" });
+      retry.addEventListener("click", () => invoiceAction(item.invoice_id, "send", "Opnieuw geprobeerd", retry));
+      return h("div", { class: "item" },
+        h("div", { class: "item-top" },
+          h("a", { class: "link", href: `#factuur/${encodeURIComponent(item.invoice_id)}`, text: `Factuur ${item.number}` }),
+        ),
+        h("div", { class: "item-subject", text: item.reason || "Onbekende reden" }),
+        h("div", { class: "item-summary", text: item.path || "" }),
+        h("div", { class: "chip-row" }, retry),
+      );
+    }));
+  }
+
+  function importCard(title, hint, accept, buttonLabel, handler) {
+    const id = uid("file");
+    const input = h("input", { id, class: "input", type: "file", accept });
+    const warn = h("div", { class: "notice warn", role: "alert", hidden: true });
+    const button = h("button", { class: "btn primary", type: "button", disabled: true, text: buttonLabel });
+    input.addEventListener("change", () => {
+      button.disabled = !input.files.length;
+      warn.hidden = true;
+    });
+    button.addEventListener("click", () => handler(input, button, warn));
+    return h("div", { class: "card" },
+      h("h3", { text: title }),
+      h("p", { class: "hint flush", text: hint }),
+      field(id, "Bestand kiezen", input),
+      warn,
+      h("div", { class: "actions" }, button),
+    );
+  }
+
+  async function importInvoice(input, button, warn) {
+    const file = input.files[0];
+    if (!file) return;
+    button.disabled = true;
+    warn.hidden = true;
+    try {
+      const xml = await readFileText(file);
+      const result = await api("/api/invoices/import", { method: "POST", body: JSON.stringify({ xml }) });
+      toast("Factuur geïmporteerd");
+      location.hash = `factuur/${encodeURIComponent(result.id)}`;
+    } catch (error) {
+      if (error.status === 422 && error.problems.length) {
+        warn.replaceChildren(
+          h("div", {},
+            h("strong", { text: "Factuur niet geïmporteerd" }),
+            h("ul", {}, error.problems.map((p) => h("li", { text: p }))),
+          ),
+        );
+        warn.hidden = false;
+      } else {
+        toast(error.message, true);
+      }
+      button.disabled = !input.files.length;
+    }
+  }
+
+  async function importBank(input, button, warn) {
+    const file = input.files[0];
+    if (!file) return;
+    button.disabled = true;
+    warn.hidden = true;
+    try {
+      const csv = await readFileText(file);
+      const result = await api("/api/invoices/bank", { method: "POST", body: JSON.stringify({ csv }) });
+      const matched = result.matched || [];
+      toast(matched.length
+        ? `${matched.length} ${matched.length === 1 ? "factuur" : "facturen"} als betaald gemarkeerd: ${matched.join(", ")}`
+        : "Geen openstaande facturen gevonden in het bankbestand");
+      input.value = "";
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      button.disabled = !input.files.length;
+    }
+  }
+
+  async function openPeppolOverview(routeId) {
+    state.reader = "peppol";
+    state.selectedInvoice = null;
+    setReader(loadingNode("Laden…"));
+    let settings = {};
+    try { settings = await api("/api/settings"); } catch (_) { /* pagina werkt ook zonder */ }
+    if (routeId !== state.routeId) return;
+    const path = settings.peppol_map || "";
+    const connected = Boolean(settings.peppol_connected);
+    const copy = h("button", { class: "btn small", type: "button", text: "Kopieer pad", onclick: () => copyText(path) });
+    const status = connected
+      ? h("div", { class: "notice info" }, h("div", { text: "Er is een Peppol access point gekoppeld. Betaalde facturen worden automatisch verzonden." }))
+      : h("div", { class: "notice warn" }, h("div", {},
+          h("div", { text: "Er is nog geen Peppol access point gekoppeld; facturen komen in de map:" }),
+          h("div", { class: "path-row" }, h("code", { class: "path", text: path || "(niet ingesteld)" }), path ? copy : null),
+        ));
+    setReader(h("div", { class: "reader-inner" },
+      h("h1", { text: "Peppol-facturen" }),
+      h("p", { class: "section-intro", text: "Facturen gaan via Peppol zodra de betaling binnen is. Markeer een factuur als betaald of importeer een bankbestand; de factuur wordt dan verzonden." }),
+      status,
+      h("div", { class: "grid-2" },
+        importCard("Factuur importeren", "Importeer een UBL-factuur (.xml). Ongeldige facturen worden niet opgeslagen.", ".xml,text/xml,application/xml", "Factuur importeren", importInvoice),
+        importCard("Bankbestand importeren", "Facturen worden als betaald gemarkeerd wanneer het factuurnummer en het exacte bedrag in het bankbestand staan.", ".csv,text/csv", "Bankbestand importeren", importBank),
+      ),
+    ));
+  }
+
+  async function invoiceAction(id, action, message, button) {
+    if (button) button.disabled = true;
+    try {
+      await api(`/api/invoices/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+      toast(message);
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function openInvoice(id, routeId) {
+    const key = String(id);
+    state.reader = "invoice";
+    state.selected = null;
+    state.selectedInvoice = key;
+    highlightItems();
+    setReader(loadingNode("Factuur openen…"));
+    try {
+      const invoice = await api(`/api/invoices/${encodeURIComponent(key)}`);
+      if (routeId !== state.routeId) return;
+      renderInvoice(invoice);
+    } catch (error) {
+      if (routeId !== state.routeId) return;
+      setReader(errorNode("Kon de factuur niet openen", error.message));
+    }
+  }
+
+  function renderInvoice(inv) {
+    const rows = [
+      ["Koper", inv.buyer_name],
+      ["Peppol-adres", inv.buyer_endpoint],
+      ["Factuurdatum", formatDate(inv.issue_date)],
+      ["Vervaldatum", formatDate(inv.due_date)],
+      ["Totaal", money(inv.total_incl, inv.currency)],
+      ["Betaald op", inv.paid_at ? formatFull(inv.paid_at) : ""],
+      ["Verzonden op", inv.sent_at ? formatFull(inv.sent_at) : ""],
+    ].filter(([, value]) => value);
+
+    const markPaid = inv.status === "wacht op betaling"
+      ? h("button", { class: "btn primary", type: "button", text: "Markeer als betaald" }) : null;
+    const send = (inv.status === "in map" || inv.status === "te verzenden")
+      ? h("button", { class: "btn primary", type: "button", text: inv.status === "in map" ? "Opnieuw verzenden" : "Verzenden" }) : null;
+    if (markPaid) markPaid.addEventListener("click", () => invoiceAction(inv.id, "mark-paid", "Factuur als betaald gemarkeerd", markPaid));
+    if (send) send.addEventListener("click", () => invoiceAction(inv.id, "send", "Verzending gestart", send));
+
+    setReader(h("div", { class: "reader-inner" },
+      h("h1", { text: `Factuur ${inv.number}` }),
+      h("div", { class: "meta" }, statusChip(inv.status)),
+      h("div", { class: "card mt" },
+        h("h3", { text: "Gegevens" }),
+        h("dl", { class: "kv" }, rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: String(v) })])),
+      ),
+      inv.last_error ? h("div", { class: "notice warn" }, h("div", {},
+        h("strong", { text: "Laatste fout" }),
+        h("div", { text: inv.last_error }),
+      )) : null,
+      h("div", { class: "actions" }, markPaid, send),
+      h("details", { class: "card activity" },
+        h("summary", { text: "Bekijk XML" }),
+        h("pre", { class: "xml", text: inv.xml || "(geen XML opgeslagen)" }),
+      ),
+    ));
+  }
+
   /* ---------- data verversen ---------- */
 
   async function loadStats() {
-    state.stats = await api("/api/stats");
+    const [stats, toSend, inMap] = await Promise.all([
+      api("/api/stats"),
+      api(`/api/invoices?status=${encodeURIComponent("te verzenden")}`).catch(() => []),
+      api(`/api/invoices?status=${encodeURIComponent("in map")}`).catch(() => []),
+    ]);
+    state.stats = stats;
+    state.invoiceCount = toSend.length + inMap.length;
     renderNav();
   }
 
@@ -1365,8 +1718,10 @@
     try {
       await loadStats();
       if (state.listMode === "clients") await loadClients();
+      else if (state.listMode === "invoices") await loadInvoiceList();
       else await loadList();
       if (state.reader === "message" && state.selected !== null) await selectMessage(state.selected);
+      if (state.reader === "invoice" && state.selectedInvoice !== null) await openInvoice(state.selectedInvoice, state.routeId);
     } catch (error) {
       toast(error.message, true);
     }
@@ -1384,6 +1739,11 @@
     if (head === "klant" && arg) return { view: "client", id: arg };
     if (head === "bericht" && arg) return { view: "message", id: arg };
     if (head === "instellingen") return { view: "settings" };
+    if (head === "peppol") {
+      const slug = INVOICE_TABS.some((t) => t.slug === arg) ? arg : "wacht-op-betaling";
+      return { view: "invoices", tab: slug };
+    }
+    if (head === "factuur" && arg) return { view: "invoice", id: arg };
     const tab = TABS.find((t) => t.id === head);
     return { view: "messages", tab: tab ? tab.id : "pending" };
   }
@@ -1418,6 +1778,14 @@
       Object.assign(state, { listMode: "messages", selectedClient: null });
       renderNav(); updatePlaceholder();
       await Promise.all([loadList(), selectMessage(route.id)]);
+    } else if (route.view === "invoices") {
+      Object.assign(state, { listMode: "invoices", invTab: route.tab, selected: null, selectedClient: null, selectedInvoice: null });
+      renderNav(); updatePlaceholder();
+      await Promise.all([loadInvoiceList(), openPeppolOverview(routeId)]);
+    } else if (route.view === "invoice") {
+      Object.assign(state, { listMode: "invoices", selected: null, selectedClient: null, selectedInvoice: String(route.id) });
+      renderNav(); updatePlaceholder();
+      await Promise.all([loadInvoiceList(), openInvoice(route.id, routeId)]);
     } else if (route.view === "settings") {
       Object.assign(state, { selected: null, selectedClient: null });
       renderNav(); updatePlaceholder();
@@ -1458,6 +1826,7 @@
     searchTimer = setTimeout(() => {
       state.query = value;
       if (state.listMode === "clients") loadClients();
+      else if (state.listMode === "invoices") renderInvoiceView();
       else loadList();
     }, 250);
   });
