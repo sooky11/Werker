@@ -24,6 +24,8 @@
     --warn-soft: #fbefd6;
     --danger: #b3261e;
     --danger-soft: #f9dedc;
+    --info: #3b6fb6;
+    --info-soft: #e3edf9;
     --radius: 12px;
     --shadow: 0 1px 2px rgba(31, 28, 24, .06), 0 4px 16px rgba(31, 28, 24, .04);
     --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -44,6 +46,8 @@
       --warn-soft: #3a2f16;
       --danger: #f2877f;
       --danger-soft: #3d1f1d;
+      --info: #8fb8ef;
+      --info-soft: #1b2a3d;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4);
     }
   }
@@ -51,29 +55,33 @@
     --bg: #14120f; --surface: #1c1915; --surface-2: #221e19; --border: #332d26;
     --text: #f2ede6; --muted: #a39b8f; --accent: #e8805a; --accent-soft: #3a261d;
     --ok: #6cc08b; --ok-soft: #1d3327; --warn: #e6b04f; --warn-soft: #3a2f16;
-    --danger: #f2877f; --danger-soft: #3d1f1d; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --danger: #f2877f; --danger-soft: #3d1f1d; --info: #8fb8ef; --info-soft: #1b2a3d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
   }
 
   /* Drie weergavethema's; de kleuren en vormen staan hier, de indeling blijft gelijk. */
   :root[data-theme="editorieel"] {
     --bg: #f7f4ee; --surface: #fbf9f4; --surface-2: #f1ece2; --border: #e4ded3;
-    --text: #1d1b18; --muted: #8a8378; --accent: #9b7b3c; --accent-soft: #efe6d2;
-    --ok: #4f7a4a; --ok-soft: #e6efe2; --warn: #9b7b3c; --warn-soft: #f3ead6;
-    --danger: #a13d32; --danger-soft: #f6e1dd; --radius: 4px; --shadow: none;
+    --text: #1d1b18; --muted: #746c60; --accent: #8f6f32; --accent-soft: #efe6d2;
+    --ok: #4f7a4a; --ok-soft: #e6efe2; --warn: #8f6f32; --warn-soft: #f3ead6;
+    --danger: #a13d32; --danger-soft: #f6e1dd; --info: #3f6a8f; --info-soft: #e4ecf2;
+    --radius: 4px; --shadow: none;
     --font: Georgia, "Times New Roman", serif;
   }
   :root[data-theme="donker"] {
     --bg: #0b0d10; --surface: #14171c; --surface-2: #1a1f26; --border: #23272f;
     --text: #f2f4f7; --muted: #7d8594; --accent: #4fd1c5; --accent-soft: #17303a;
     --ok: #4fd1c5; --ok-soft: #17303a; --warn: #f5b84b; --warn-soft: #3a2c12;
-    --danger: #f2877f; --danger-soft: #3d1f1d; --radius: 14px; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --danger: #f2877f; --danger-soft: #3d1f1d; --info: #7ab4ff; --info-soft: #162a44;
+    --radius: 14px; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
     --font: -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
   }
   :root[data-theme="zacht"] {
     --bg: #eef0f7; --surface: #ffffff; --surface-2: #f6f7fc; --border: #e3e5f2;
-    --text: #1b1d2a; --muted: #7a7f96; --accent: #6d5efc; --accent-soft: #ecebff;
-    --ok: #1f9d6b; --ok-soft: #e3f6ee; --warn: #b26a00; --warn-soft: #fdf1dc;
-    --danger: #d9415b; --danger-soft: #fde4e9; --radius: 18px; --shadow: 0 10px 30px rgba(40, 44, 90, .07);
+    --text: #1b1d2a; --muted: #656a82; --accent: #6150e6; --accent-soft: #ecebff;
+    --ok: #1f9d6b; --ok-soft: #e3f6ee; --warn: #a25f00; --warn-soft: #fdf1dc;
+    --danger: #d9415b; --danger-soft: #fde4e9; --info: #3b6fb6; --info-soft: #e3edf9;
+    --radius: 18px; --shadow: 0 10px 30px rgba(40, 44, 90, .07);
     --font: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
 
@@ -188,20 +196,34 @@
     color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
   }
   .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.has-icon { height: 24px; padding: 0 10px 0 7px; }
+  .chip.has-icon::before { display: none; }
+  .chip .chip-icon { width: 14px; height: 14px; flex: none; }
   .chip.prijsvraag { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
-  .chip.afspraak { color: #3b6fb6; background: #e3edf9; border-color: transparent; }
+  .chip.afspraak { color: var(--info); background: var(--info-soft); border-color: transparent; }
   .chip.klacht, .chip.hoog { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
   .chip.factuur { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
   .chip.wacht { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 
-  /* Reading pane */
-  .reader { overflow-y: auto; padding: 28px clamp(16px, 4vw, 48px) 60px; }
-  .reader-inner { max-width: 760px; margin: 0 auto; }
+  /* Icons (inline SVG, geen externe bibliotheek) */
+  .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nav-item { gap: 10px; }
+  .nav-label { display: inline-flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .btn .icon { width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; }  .btn.icon-btn .icon { margin-right: 0; }
+
+  /* Reader */
+  .reader { overflow-y: auto; padding: 32px clamp(16px, 4vw, 56px) 72px; }
+  .reader-inner { max-width: 720px; margin: 0 auto; }
+  .reader-inner > * + * { margin-top: 0; }
   .empty {
-    height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted);
+    height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 24px;
   }
-  .empty h3 { color: var(--text); margin: 0 0 6px; font-size: 17px; }
-  .reader h1 { font-size: 24px; line-height: 1.25; letter-spacing: -.02em; margin: 6px 0 14px; font-weight: 650; overflow-wrap: anywhere; }
+  .empty > div { display: grid; justify-items: center; gap: 6px; max-width: 320px; }
+  .empty .empty-icon { width: 36px; height: 36px; color: var(--accent); margin-bottom: 6px; opacity: .85; }
+  .empty h3 { color: var(--text); margin: 0 0 2px; font-size: 17px; }
+  .empty p { margin: 0; font-size: 14px; line-height: 1.55; }
+  .empty .btn { margin-top: 10px; }
+  .reader h1 { font-size: 22px; line-height: 1.3; letter-spacing: -.015em; margin: 6px 0 16px; font-weight: 650; overflow-wrap: anywhere; }
   .meta { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; color: var(--muted); font-size: 13.5px; }
   .meta strong { color: var(--text); font-weight: 600; }
   .name { font-weight: 650; }
@@ -213,13 +235,13 @@
   .from > div:last-child { min-width: 0; }
   .card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px;
+    box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 18px;
   }
   .card h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
   .summary-text { margin: 0; font-size: 15px; }
   .body {
-    white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.65;
-    max-width: 68ch; margin: 0;
+    white-space: pre-wrap; word-wrap: break-word; font-size: 15.5px; line-height: 1.75;
+    max-width: 66ch; margin: 0;
   }
   .body.mt { margin-top: 10px; }
   .draft textarea {
@@ -322,6 +344,27 @@
   .mailbox-card legend { font-weight: 650; padding: 0 6px; font-size: 14px; }
   .form-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
 
+  /* Begin-kaart (eerste keer) */
+  .setup-card {
+    border: 1px solid var(--accent); background: var(--accent-soft); border-radius: var(--radius);
+    padding: 16px 16px 14px; margin: 12px 12px 8px; color: var(--text);
+  }
+  .setup-card h3 { margin: 0; font-size: 16px; font-weight: 650; }
+  .setup-card > p { margin: 2px 0 10px; font-size: 13px; color: var(--muted); }
+  .setup-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .setup-step {
+    width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+    font-weight: 550; font-size: 14px;
+  }
+  .setup-step:hover { border-color: var(--accent); }
+  .setup-num {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+  }
+  .setup-step .icon { margin-left: auto; color: var(--muted); width: 16px; height: 16px; }
+  .setup-card .actions { margin-top: 8px; }
+
   /* Toast */
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
@@ -332,6 +375,13 @@
   .toast.error { background: var(--danger); color: #fff; }
 
   .loading { color: var(--muted); padding: 24px; font-size: 14px; }
+  .list-empty {
+    display: grid; justify-items: center; gap: 6px; padding: 44px 24px; text-align: center; color: var(--muted);
+  }
+  .list-empty h3 { margin: 0; font-size: 16px; color: var(--text); }
+  .list-empty p { margin: 0; font-size: 14px; line-height: 1.55; max-width: 280px; }
+  .list-empty .btn { margin-top: 12px; }
+  .list-empty .empty-icon { width: 34px; height: 34px; color: var(--accent); opacity: .85; margin-bottom: 4px; }
 
   /* Herinneringen, rapporten, teamaccounts en AVG */
   .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
@@ -389,7 +439,18 @@
   @media (max-width: 560px) {
     .grid-2 { grid-template-columns: 1fr; }
   }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* Zachte overgangen; uit voor wie beweging liever niet ziet. */
+  @media (prefers-reduced-motion: no-preference) {
+    .nav-item, .item, .btn, .seg-btn, .tl-item, .setup-step, .input {
+      transition: background-color .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease;
+    }
+    .reader-inner { animation: fade-in .22s ease both; }
+    .list-head h2 { animation: fade-in .18s ease both; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  }
 </style>
 </head>
 <body>
@@ -403,9 +464,11 @@
     <label for="q" class="sr-only">Zoeken</label>
     <input id="q" type="search" placeholder="Zoeken" autocomplete="off">
   </div>
-  <button class="btn primary" id="sync" type="button">Synchroniseer</button>
+  <button class="btn primary icon-btn" id="sync" type="button">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg><span class="btn-label">Synchroniseer</span>
+  </button>
   <button class="btn icon-btn" id="settings-btn" type="button" aria-label="Instellingen" aria-pressed="false" title="Instellingen">
-    <span aria-hidden="true">⚙</span><span class="hide-small">Instellingen</span>
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="hide-small">Instellingen</span>
   </button>
 </header>
 
@@ -513,7 +576,56 @@
     privacyLog: [],
     loadId: 0,
     routeId: 0,
+    setup: null,            // begin-status uit /api/settings (null = onbekend)
+    setupDismissed: false,  // "Later" in deze sessie
+    settingsFocus: null,    // id van de instellingen-sectie waar naartoe gescrolld wordt
   };
+
+  /* Pictogrammen: vaste SVG-paden in de code, geen externe bibliotheek en geen innerHTML. */
+  const ICON_PATHS = {
+    inbox: [["path", { d: "M3 13l2.4-7.2A2 2 0 0 1 7.3 4.5h9.4a2 2 0 0 1 1.9 1.3L21 13" }], ["path", { d: "M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5l-1 2h-6l-1-2z" }]],
+    clock: [["circle", { cx: 12, cy: 12, r: 9 }], ["path", { d: "M12 7v5l3 2" }]],
+    list: [["path", { d: "M9 6h12M9 12h12M9 18h12" }], ["path", { d: "M4 6h.01M4 12h.01M4 18h.01" }]],
+    chat: [["path", { d: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" }]],
+    calendar: [["rect", { x: 3, y: 4, width: 18, height: 17, rx: 2 }], ["path", { d: "M3 9h18M8 2v4M16 2v4" }]],
+    alert: [["path", { d: "M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" }], ["path", { d: "M12 9v4M12 17h.01" }]],
+    receipt: [["path", { d: "M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z" }], ["path", { d: "M9 8h6M9 12h6" }]],
+    tag: [["path", { d: "M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" }], ["circle", { cx: 7.5, cy: 7.5, r: 1.5 }]],
+    euro: [["path", { d: "M18 7a7 7 0 1 0 0 10M4 10h10M4 14h10" }]],
+    news: [["rect", { x: 3, y: 4, width: 18, height: 16, rx: 2 }], ["path", { d: "M7 8h10M7 12h10M7 16h6" }]],
+    ban: [["circle", { cx: 12, cy: 12, r: 9 }], ["path", { d: "M5.6 5.6l12.8 12.8" }]],
+    bell: [["path", { d: "M18 16V11a6 6 0 0 0-12 0v5l-2 2h16z" }], ["path", { d: "M10 21h4" }]],
+    chart: [["path", { d: "M4 20V10M10 20V4M16 20v-7M22 20H2" }]],
+    users: [["circle", { cx: 9, cy: 8, r: 4 }], ["path", { d: "M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M16 4a4 4 0 0 1 0 8M22 21v-1a6 6 0 0 0-4-5.6" }]],
+    file: [["path", { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }], ["path", { d: "M14 2v6h6" }]],
+    mail: [["rect", { x: 3, y: 5, width: 18, height: 14, rx: 2 }], ["path", { d: "M3 7l9 6 9-6" }]],
+    plus: [["path", { d: "M12 5v14M5 12h14" }]],
+    arrow: [["path", { d: "M9 6l6 6-6 6" }]],
+    sync: [["path", { d: "M21 12a9 9 0 1 1-2.64-6.36" }], ["path", { d: "M21 4v5h-5" }]],
+  };
+  const TAB_ICONS = {
+    pending: "clock", ingepland: "calendar", all: "list", prijsvraag: "chat", afspraak: "calendar", klacht: "alert",
+    factuur: "receipt", overig: "tag", betaling: "euro", nieuwsbrief: "news", spam: "ban",
+  };
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function svgIcon(name, cls = "icon") {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("class", cls);
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    for (const [tag, attrs] of ICON_PATHS[name] || []) {
+      const el = document.createElementNS(SVG_NS, tag);
+      for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
+      svg.append(el);
+    }
+    return svg;
+  }
+
+  // Koppeling van instellingen-secties aan een id, zodat de begin-kaart ernaar kan scrollen.
+  const SECTION_IDS = { AI: "instelling-ai", Synchronisatie: "instelling-synchronisatie", Mailboxen: "instelling-mailboxen" };
+  const SETUP_KEY = "werker-begin-verborgen";
+  const SETUP_SECTIONS = { ai: "instelling-ai", prijs: "instelling-synchronisatie", mailbox: "instelling-mailboxen" };
 
   const $ = (sel) => document.querySelector(sel);
   let uidSeq = 0;
@@ -603,7 +715,9 @@
 
   function intentChip(intent) {
     if (!intent) return null;
-    return h("span", { class: `chip ${intent}` }, INTENT_LABELS[intent] || intent);
+    const icon = TAB_ICONS[intent];
+    if (!icon) return h("span", { class: `chip ${intent}` }, INTENT_LABELS[intent] || intent);
+    return h("span", { class: `chip has-icon ${intent}` }, svgIcon(icon, "icon chip-icon"), INTENT_LABELS[intent] || intent);
   }
 
   function urgencyChip(urgency) {
@@ -632,7 +746,7 @@
 
   /* ---------- navigatie ---------- */
 
-  function navButton(label, hash, current, count = null, hot = false) {
+  function navButton(label, hash, current, count = null, hot = false, icon = null) {
     return h("button", {
       class: "nav-item",
       type: "button",
@@ -642,7 +756,7 @@
         else location.hash = hash;
       },
     },
-      h("span", { text: label }),
+      h("span", { class: "nav-label" }, icon ? svgIcon(icon) : null, h("span", { text: label })),
       count === null ? null : h("span", { class: `count${hot && count > 0 ? " hot" : ""}`, text: count }),
     );
   }
@@ -663,10 +777,11 @@
       state.listMode === "messages" && state.tab === tab.id,
       countFor(tab),
       tab.id === "pending",
-    )), navButton("Herinneringen", "#herinneringen", state.listMode === "reminders", state.reminderCount ?? 0, true),
-    navButton("Rapporten", "#rapporten", state.listMode === "reports"));
-    $("#nav-clients").replaceChildren(navButton("Alle klanten", "#klanten", state.listMode === "clients"));
-    $("#nav-peppol").replaceChildren(navButton("Peppol-facturen", "#peppol", state.listMode === "invoices", state.invoiceCount, true));
+      TAB_ICONS[tab.id],
+    )), navButton("Herinneringen", "#herinneringen", state.listMode === "reminders", state.reminderCount ?? 0, true, "bell"),
+    navButton("Rapporten", "#rapporten", state.listMode === "reports", null, false, "chart"));
+    $("#nav-clients").replaceChildren(navButton("Alle klanten", "#klanten", state.listMode === "clients", null, false, "users"));
+    $("#nav-peppol").replaceChildren(navButton("Peppol-facturen", "#peppol", state.listMode === "invoices", state.invoiceCount, true, "file"));
     $("#seg").hidden = state.listMode !== "invoices";
     if (state.listMode === "invoices") renderSegment();
     $("#settings-btn").setAttribute("aria-pressed", String(state.reader === "settings"));
@@ -716,6 +831,37 @@
     }
   }
 
+  function listEmpty(tab) {
+    if (state.query) {
+      return h("div", { class: "list-empty" },
+        svgIcon("mail", "icon empty-icon"),
+        h("h3", { text: "Geen resultaten" }),
+        h("p", { text: `Niets gevonden voor “${state.query}”.` }),
+      );
+    }
+    if (tab.id === "pending") {
+      return h("div", { class: "list-empty" },
+        svgIcon("clock", "icon empty-icon"),
+        h("h3", { text: "Alles is afgehandeld" }),
+        h("p", { text: "Er wacht niets op jouw goedkeuring. Mooi werk." }),
+      );
+    }
+    if (tab.id === "ingepland") {
+      return h("div", { class: "list-empty" },
+        svgIcon("calendar", "icon empty-icon"),
+        h("h3", { text: "Niets ingepland" }),
+        h("p", { text: "Er staan geen antwoorden ingepland." }),
+      );
+    }
+    return h("div", { class: "list-empty" },
+      svgIcon("mail", "icon empty-icon"),
+      h("h3", { text: "Hier is het nog leeg" }),
+      h("p", { text: "Er staan geen berichten in deze categorie." }),
+      h("button", { class: "btn small", type: "button", onclick: () => $("#sync").click() },
+        svgIcon("sync"), "Synchroniseer"),
+    );
+  }
+
   function renderList() {
     const tab = currentTab();
     const n = state.messages.length;
@@ -723,10 +869,8 @@
       ? (state.query ? "Geen resultaten" : "Niets hier")
       : `${n} ${n === 1 ? "bericht" : "berichten"}`;
     if (n === 0) {
-      let empty = "Geen berichten in deze categorie.";
-      if (tab.id === "pending" && !state.query) empty = "Alles is afgehandeld. Mooi werk.";
-      if (tab.id === "ingepland" && !state.query) empty = "Er staan geen antwoorden ingepland.";
-      $("#items").replaceChildren(h("div", { class: "loading", text: empty }));
+      $("#items").replaceChildren(listEmpty(tab));
+      placeSetupCard();
       return;
     }
     $("#items").replaceChildren(...state.messages.map((m) => {
@@ -753,6 +897,71 @@
         ),
       );
     }));
+    placeSetupCard();
+  }
+
+  /* ---------- begin-kaart ---------- */
+
+  function setupStatus(data) {
+    const v = data.values || {};
+    return [
+      { id: "ai", num: 1, label: "API-sleutel invullen", done: Boolean((data.secrets_set || {}).ANTHROPIC_API_KEY) },
+      { id: "prijs", num: 2, label: "Prijslijst koppelen", done: String(v.WERKER_PRICES_CSV_URL || "").trim() !== "" },
+      { id: "mailbox", num: 3, label: "Mailbox toevoegen", done: (data.mailboxes || []).length > 0 },
+    ];
+  }
+
+  function setupHiddenInBrowser() {
+    try { return localStorage.getItem(SETUP_KEY) === "1"; } catch (_) { return false; }
+  }
+
+  function openSetupStep(id) {
+    state.settingsFocus = SETUP_SECTIONS[id] || null;
+    if (location.hash === "#instellingen") onRoute();
+    else location.hash = "instellingen";
+  }
+
+  function hideSetup() {
+    state.setupDismissed = true;
+    try { localStorage.setItem(SETUP_KEY, "1"); } catch (_) { /* geen opslag: alleen voor deze sessie */ }
+    placeSetupCard();
+  }
+
+  function setupCardNode() {
+    if (!state.setup || state.setupDismissed || setupHiddenInBrowser()) return null;
+    const open = state.setup.filter((step) => !step.done);
+    if (!open.length) return null;
+    return h("section", { class: "setup-card", "aria-labelledby": "setup-title" },
+      h("h3", { id: "setup-title", text: "Begin hier" }),
+      h("p", { text: "Drie stappen, dan kan Werker voor je aan de slag." }),
+      h("ol", { class: "setup-steps" }, open.map((step) => h("li", {},
+        h("button", { class: "setup-step", type: "button", onclick: () => openSetupStep(step.id) },
+          h("span", { class: "setup-num", text: String(step.num) }),
+          h("span", { text: step.label }),
+          svgIcon("arrow"),
+        ),
+      ))),
+      h("div", { class: "actions" },
+        h("button", { class: "btn small ghost", type: "button", text: "Later", onclick: hideSetup })),
+    );
+  }
+
+  // Zet de begin-kaart bovenaan de berichtenlijst; verdwijnt zodra alles ingesteld is.
+  function placeSetupCard() {
+    if (state.listMode !== "messages") return;
+    const items = $("#items");
+    items.querySelector(".setup-card")?.remove();
+    const card = setupCardNode();
+    if (card) items.prepend(card);
+  }
+
+  function focusSettingsSection() {
+    const target = state.settingsFocus && document.getElementById(state.settingsFocus);
+    state.settingsFocus = null;
+    if (!target) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    target.querySelector("input, select, textarea")?.focus({ preventScroll: true });
   }
 
   /* ---------- klantenlijst ---------- */
@@ -1254,6 +1463,7 @@
       if (routeId !== state.routeId) return;
       state.privacyLog = privacyLog;
       renderSettings(data);
+      focusSettingsSection();
     } catch (error) {
       if (routeId !== state.routeId) return;
       setReader(errorNode("Kon de instellingen niet laden", error.message));
@@ -1261,7 +1471,7 @@
   }
 
   function settingsSection(title, intro, ...children) {
-    return h("section", { class: "card settings-section" },
+    return h("section", { class: "card settings-section", id: SECTION_IDS[title] },
       h("h2", { class: "section-title", text: title }),
       h("p", { class: "section-intro", text: intro }),
       ...children,
@@ -1354,6 +1564,8 @@
   function renderSettings(data, privacyLog = state.privacyLog) {
     const v = data.values || {};
     const s = data.secrets_set || {};
+    state.setup = setupStatus(data);
+    placeSetupCard();
     const secretPlaceholder = (key) => (s[key] ? PLACEHOLDER_SET : PLACEHOLDER_UNSET);
     const secretInput = (id, key) => h("input", {
       id,
@@ -1503,8 +1715,8 @@
         "Elke mailbox wordt ingelezen via IMAP en beantwoord via SMTP. Laat het wachtwoord leeg om het bestaande te behouden.",
         mailboxList,
         h("div", { class: "actions" },
-          h("button", { class: "btn", type: "button", text: "Mailbox toevoegen",
-            onclick: () => mailboxList.append(mailboxCard({})) }),
+          h("button", { class: "btn", type: "button", onclick: () => mailboxList.append(mailboxCard({})) },
+            svgIcon("plus"), "Mailbox toevoegen"),
         ),
       ),
 
@@ -1512,8 +1724,8 @@
         "Geef collega's een eigen inlog. Een beheerder mag instellingen en gebruikers wijzigen; een medewerker niet. Wachtwoorden worden nooit getoond.",
         usersList,
         h("div", { class: "actions" },
-          h("button", { class: "btn", type: "button", text: "Gebruiker toevoegen",
-            onclick: () => usersList.append(userRow({})) }),
+          h("button", { class: "btn", type: "button", onclick: () => usersList.append(userRow({})) },
+            svgIcon("plus"), "Gebruiker toevoegen"),
         ),
       ),
 
@@ -2280,7 +2492,7 @@
       : h("div", {}, "Gebruik ", h("kbd", { text: "j" }), " en ", h("kbd", { text: "k" }), " om door de lijst te bewegen.");
     const title = mode === "clients" ? "Geen klant geopend"
       : mode === "reminders" ? "Geen herinnering geopend" : "Kies een bericht";
-    setReader(h("div", { class: "empty" }, h("div", {}, h("h3", { text: title }), hint)));
+    setReader(h("div", { class: "empty" }, h("div", {}, svgIcon(mode === "clients" ? "users" : mode === "reminders" ? "bell" : "mail", "icon empty-icon"), h("h3", { text: title }), hint)));
   }
 
   async function onRoute() {
@@ -2371,8 +2583,9 @@
 
   $("#sync").addEventListener("click", async (event) => {
     const button = event.currentTarget;
+    const label = button.querySelector(".btn-label");
     button.disabled = true;
-    button.textContent = "Bezig…";
+    label.textContent = "Bezig…";
     try {
       const result = await api("/api/sync", { method: "POST" });
       toast(result.processed ? `${result.processed} nieuwe berichten verwerkt` : "Geen nieuwe berichten");
@@ -2381,7 +2594,7 @@
       toast(error.message, true);
     } finally {
       button.disabled = false;
-      button.textContent = "Synchroniseer";
+      label.textContent = "Synchroniseer";
     }
   });
 
@@ -2395,7 +2608,11 @@
 
   if (!location.hash) history.replaceState(null, "", "#pending");
   loadStats().catch(() => {});
-  api("/api/settings").then((data) => applyTheme(data.values.WERKER_THEME)).catch(() => {});
+  api("/api/settings").then((data) => {
+    applyTheme(data.values.WERKER_THEME);
+    state.setup = setupStatus(data);
+    placeSetupCard();
+  }).catch(() => {});
   onRoute();
 })();
 </script>
