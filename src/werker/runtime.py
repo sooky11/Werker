@@ -21,6 +21,7 @@ from typing import Any, Mapping
 
 import anthropic
 
+from werker.calendar_providers import CalendarProvider, GoogleCalendarProvider, NoCalendar, build_service
 from werker.classify import Classifier
 from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
@@ -51,6 +52,8 @@ SETTING_KEYS = (
     "PEPPOL_LEGAL_ENTITY_ID",
     "WERKER_THEME",
     "WERKER_RETENTION_DAYS",
+    "WERKER_CALENDAR_ID",
+    "WERKER_CALENDAR_TOKEN",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -68,6 +71,8 @@ DEFAULTS = {
     "PEPPOL_LEGAL_ENTITY_ID": "",
     "WERKER_THEME": "editorieel",
     "WERKER_RETENTION_DAYS": "0",
+    "WERKER_CALENDAR_ID": "",
+    "WERKER_CALENDAR_TOKEN": "",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
@@ -116,6 +121,19 @@ def mailbox_secret_key(name: str) -> str:
     readable = re.sub(r"\W", "_", name).upper()
     digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
     return f"MAILBOX_{readable}_{digest}_PW"
+
+
+def _calendar(env: Mapping[str, str]) -> CalendarProvider:
+    """Google Calendar als er een agenda-id en een token zijn; anders geen agenda."""
+    calendar_id = env.get("WERKER_CALENDAR_ID", "")
+    token_path = env.get("WERKER_CALENDAR_TOKEN", "")
+    if not calendar_id or not token_path:
+        return NoCalendar()
+    try:
+        return GoogleCalendarProvider(build_service(token_path), calendar_id=calendar_id)
+    except Exception as exc:
+        log.warning("agenda niet beschikbaar, afspraken worden niet ingepland: %s", exc)
+        return NoCalendar()
 
 
 class Runtime:
@@ -266,6 +284,7 @@ class Runtime:
             "rules": settings.rules,
             "connectors": build_connectors(env),
             "payments": self.invoicing.match_message,
+            "calendar": _calendar(env),
         }
 
     def reconfigure(self) -> None:
