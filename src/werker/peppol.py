@@ -49,6 +49,8 @@ class ParsedInvoice:
     buyer_name: str
     buyer_endpoint: str
     problems: list[str] = field(default_factory=list)
+    format: str = "ubl"
+    needs_review: bool = False
 
 
 def _text(root: ET.Element, path: str) -> str | None:
@@ -188,11 +190,11 @@ def safe_filename(number: str) -> str:
     return re.sub(r"[^\w.-]", "_", number).strip("._") or "factuur"
 
 
-def write_to_map(folder: Path, number: str, xml: bytes, reason: str) -> Path:
-    """Zet de factuur in de map met een tekstbestand waarom ze daar staat. Geeft het pad van het XML-bestand."""
+def write_to_map(folder: Path, number: str, xml: bytes, reason: str, suffix: str = ".xml") -> Path:
+    """Zet de factuur in de map met een tekstbestand waarom ze daar staat. Geeft het pad van het factuurbestand."""
     folder.mkdir(parents=True, exist_ok=True)
     base = safe_filename(number)
-    xml_path = folder / f"{base}.xml"
+    xml_path = folder / f"{base}{suffix}"
     xml_path.write_bytes(xml)
     (folder / f"{base}.txt").write_text(reason + "\n", encoding="utf-8")
     return xml_path
@@ -200,5 +202,5 @@ def write_to_map(folder: Path, number: str, xml: bytes, reason: str) -> Path:
 
 def remove_from_map(folder: Path, number: str) -> None:
     base = safe_filename(number)
-    for suffix in (".xml", ".txt"):
+    for suffix in (".xml", ".edi", ".txt"):
         (folder / f"{base}{suffix}").unlink(missing_ok=True)

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetisch voorbeeld naar de openbare FacturaE 3.2.2-opzet; niet tegen de officiële XSD gecontroleerd. -->
+<fe:Facturae xmlns:fe="http://www.facturae.gob.es/formato/Versiones/Facturaev3_2_2.xml">
+  <FileHeader>
+    <SchemaVersion>3.2.2</SchemaVersion>
+    <Modality>I</Modality>
+  </FileHeader>
+  <Parties>
+    <SellerParty>
+      <TaxIdentification><PersonTypeCode>J</PersonTypeCode><ResidenceTypeCode>R</ResidenceTypeCode><TaxIdentificationNumber>B12345674</TaxIdentificationNumber></TaxIdentification>
+      <LegalEntity><CorporateName>Vendedor S.L.</CorporateName></LegalEntity>
+    </SellerParty>
+    <BuyerParty>
+      <TaxIdentification><PersonTypeCode>J</PersonTypeCode><ResidenceTypeCode>R</ResidenceTypeCode><TaxIdentificationNumber>A87654321</TaxIdentificationNumber></TaxIdentification>
+      <LegalEntity><CorporateName>Comprador S.A.</CorporateName></LegalEntity>
+    </BuyerParty>
+  </Parties>
+  <Invoices>
+    <Invoice>
+      <InvoiceHeader>
+        <InvoiceNumber>FE-2026-001</InvoiceNumber>
+        <InvoiceSeriesCode>FE</InvoiceSeriesCode>
+        <InvoiceDocumentType>FC</InvoiceDocumentType>
+        <InvoiceClass>OO</InvoiceClass>
+      </InvoiceHeader>
+      <InvoiceIssueData>
+        <IssueDate>2026-10-01</IssueDate>
+        <InvoiceCurrencyCode>EUR</InvoiceCurrencyCode>
+      </InvoiceIssueData>
+      <TaxesOutputs>
+        <Tax><TaxTypeCode>01</TaxTypeCode><TaxRate>21.00</TaxRate><TaxableBase><TotalAmount>1000.00</TotalAmount></TaxableBase><TaxAmount><TotalAmount>210.00</TotalAmount></TaxAmount></Tax>
+      </TaxesOutputs>
+      <InvoiceTotals>
+        <TotalGrossAmount>1000.00</TotalGrossAmount>
+        <TotalGrossAmountBeforeTaxes>1000.00</TotalGrossAmountBeforeTaxes>
+        <TotalTaxOutputs>210.00</TotalTaxOutputs>
+        <TotalTaxesWithheld>0.00</TotalTaxesWithheld>
+        <InvoiceTotal>1210.00</InvoiceTotal>
+        <TotalOutstandingAmount>1210.00</TotalOutstandingAmount>
+        <TotalExecutableAmount>1210.00</TotalExecutableAmount>
+      </InvoiceTotals>
+      <PaymentDetails>
+        <Installment>
+          <InstallmentDueDate>2026-10-31</InstallmentDueDate>
+          <InstallmentAmount>1210.00</InstallmentAmount>
+          <PaymentMeans>04</PaymentMeans>
+        </Installment>
+      </PaymentDetails>
+    </Invoice>
+  </Invoices>
+</fe:Facturae>

@@ -90,7 +90,11 @@ create table if not exists invoices (
 # Kolommen die na een eerste versie zijn toegevoegd; oudere databases krijgen ze alsnog.
 _ADDED_COLUMNS = {
     "messages": {"client_id": "integer references clients(id)"},
-    "invoices": {"client_id": "integer references clients(id)"},
+    "invoices": {
+        "client_id": "integer references clients(id)",
+        "format": "text not null default 'ubl'",
+        "needs_review": "integer not null default 0",
+    },
     "drafts": {
         "scheduled_for": "text",
         "revises": "integer",
@@ -433,8 +437,8 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin):
         with self._db:
             cursor = self._db.execute(
                 """insert into invoices (number, issue_date, due_date, currency, total_excl, total_vat,
-                   total_incl, buyer_name, buyer_endpoint, xml, status, created_at, client_id)
-                   values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   total_incl, buyer_name, buyer_endpoint, xml, status, created_at, client_id, format, needs_review)
+                   values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     number,
                     fields["issue_date"],
@@ -449,6 +453,8 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin):
                     status,
                     _now(),
                     fields.get("client_id"),
+                    fields.get("format", "ubl"),
+                    1 if fields.get("needs_review") else 0,
                 ),
             )
         return cursor.lastrowid
@@ -471,7 +477,7 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin):
 
     @_locked
     def update_invoice(self, invoice_id: int, **values: Any) -> None:
-        allowed = {"status", "paid_at", "sent_at", "last_error", "client_id"}
+        allowed = {"status", "paid_at", "sent_at", "last_error", "client_id", "needs_review"}
         if set(values) - allowed:
             raise ValueError(f"onbekend factuurveld: {set(values) - allowed}")
         assignments = ", ".join(f"{key} = ?" for key in values)

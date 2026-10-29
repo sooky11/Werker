@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import secrets
 from datetime import datetime, timezone
@@ -46,6 +48,11 @@ class InvoiceIn(BaseModel):
 class ImportIn(BaseModel):
     xml: str
     client_id: int | None = None
+
+
+class ImportFileIn(BaseModel):
+    filename: str = ""
+    content_base64: str
 
 
 class BankIn(BaseModel):
@@ -315,6 +322,31 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
         return {"id": invoice_id}
+
+    @app.post("/api/invoices/import-file", dependencies=[ui_auth])
+    def import_invoice_file(payload: ImportFileIn) -> dict[str, Any]:
+        try:
+            data = base64.b64decode(payload.content_base64, validate=True)
+        except (binascii.Error, ValueError):
+            raise HTTPException(status_code=422, detail={"problems": ["het bestand is geen geldige base64-inhoud"]})
+        try:
+            invoice_id = runtime.invoicing.import_document(data, filename=payload.filename)
+        except InvoiceError as exc:
+            raise HTTPException(status_code=422, detail={"problems": exc.problems})
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        row = runtime.store.get_invoice(invoice_id)
+        return {"id": invoice_id, "format": row["format"], "needs_review": bool(row["needs_review"])}
+
+    @app.post("/api/invoices/{invoice_id}/mark-reviewed", dependencies=[ui_auth])
+    def mark_reviewed(invoice_id: int) -> dict[str, Any]:
+        try:
+            runtime.invoicing.mark_reviewed(invoice_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return {"status": "wacht op betaling"}
 
     @app.post("/api/invoices/validate", dependencies=[ui_auth])
     def validate_invoice(payload: InvoiceIn) -> dict[str, Any]:

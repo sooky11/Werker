@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from werker.models import Message
-from werker.peppol import AccessPoint, InvoiceError, parse_bank_csv, parse_ubl, remove_from_map, write_to_map
+from werker.invoice_formats import document_text, parse_invoice
+from werker.peppol import AccessPoint, InvoiceError, parse_bank_csv, parse_ubl, remove_from_map, safe_filename, write_to_map
 from werker.prices import find_amounts
 from werker.store import Store
 from werker.store_billing import (
@@ -25,14 +26,21 @@ from werker.store_billing import (
 log = logging.getLogger(__name__)
 
 WAITING_PAYMENT = "wacht op betaling"
+NEEDS_REVIEW = "wacht op controle"
 TO_SEND = "te verzenden"
 SENT = "verzonden"
 IN_MAP = "in map"
 REMINDER_INTERVAL = timedelta(days=7)
+# Bestandsvorm per formaat in de map; alleen UBL kan via Peppol.
+MAP_SUFFIX = {"x12-810": ".edi"}
 
 
 class NotConfigured(RuntimeError):
     pass
+
+
+class NotSendable(RuntimeError):
+    """De factuur kan niet via Peppol; de reden staat in het tekstbestand naast de factuur in de map."""
 
 
 class ReminderSendError(RuntimeError):
@@ -86,12 +94,17 @@ class Invoicing:
     # ---------- importeren ----------
 
     def import_xml(self, xml: str, client_id: int | None = None) -> int:
-        """Importeer een UBL-factuur. Geeft het nieuwe factuur-id. Ongeldige facturen worden geweigerd met alle problemen.
+        """Importeer een factuur als tekst (XML of X12). Zie import_document."""
+        return self.import_document(xml.encode("utf-8"), client_id=client_id)
 
-        Zonder client_id koppelen we de factuur aan een klant met dezelfde naam als de afnemer, als die bestaat.
+    def import_document(self, data: bytes, filename: str = "", client_id: int | None = None) -> int:
+        """Importeer een factuur in een van de ondersteunde formaten. Geeft het nieuwe factuur-id.
+
+        Ongeldige facturen worden geweigerd met alle problemen en komen niet in de administratie. Facturen waarvan
+        het formaat niet volledig is (needs_review) komen op 'wacht op controle' en blijven daar tot iemand ze
+        heeft nagekeken. Zonder client_id koppelen we de factuur aan een klant met dezelfde naam als de afnemer.
         """
-        raw = xml.encode("utf-8")
-        parsed = parse_ubl(raw)
+        parsed = parse_invoice(data, filename)
         if self._store.find_invoice_by_number(parsed.number) is not None:
             raise ValueError(f"factuur {parsed.number} staat er al in")
         if client_id is None:
@@ -105,9 +118,21 @@ class Invoicing:
             "total_incl": parsed.total_incl,
             "buyer_name": parsed.buyer_name,
             "buyer_endpoint": parsed.buyer_endpoint,
+            "client_id": client_id,
+            "format": parsed.format,
+            "needs_review": parsed.needs_review,
         }
-        fields["client_id"] = client_id
-        return self._store.add_invoice(parsed.number, fields, xml, WAITING_PAYMENT)
+        status = NEEDS_REVIEW if parsed.needs_review else WAITING_PAYMENT
+        return self._store.add_invoice(parsed.number, fields, document_text(data), status)
+
+    def mark_reviewed(self, invoice_id: int) -> None:
+        """Iemand heeft de factuur nagekeken: ze gaat naar 'wacht op betaling' en wordt daarna gewoon verwerkt."""
+        with self._lock:
+            row = self._get(invoice_id)
+            if row["status"] != NEEDS_REVIEW:
+                raise ValueError("deze factuur staat niet op 'wacht op controle'")
+            self._store.update_invoice(invoice_id, status=WAITING_PAYMENT, needs_review=0)
+            self._store.audit(None, "factuur nagekeken", row["number"])
 
     def _client_by_name(self, name: str) -> int | None:
         matches = [row["id"] for row in self._store.list_clients() if row["name"].strip().lower() == name.strip().lower()]
@@ -200,13 +225,18 @@ class Invoicing:
     def _send(self, invoice_id: int) -> str:
         row = self._get(invoice_id)
         xml = row["xml"].encode("utf-8")
+        suffix = MAP_SUFFIX.get(row["format"], ".xml")
         try:
+            if not row["buyer_endpoint"]:
+                raise NotSendable("geen Peppol-adres van de afnemer bekend; factuur kan niet via Peppol worden verstuurd")
+            if row["format"] != "ubl":
+                raise NotSendable(f"formaat {row['format']} kan niet via Peppol worden verstuurd; alleen UBL")
             if self.access_point is None:
                 raise NotConfigured("geen Peppol access point gekoppeld")
             self.access_point.send(xml, row["buyer_endpoint"])
         except Exception as exc:
             reason = f"{datetime.now(timezone.utc).isoformat()}: {exc}"
-            write_to_map(self.folder, row["number"], xml, reason)
+            write_to_map(self.folder, row["number"], xml, reason, suffix)
             self._store.update_invoice(invoice_id, status=IN_MAP, last_error=str(exc))
             self._store.audit(None, "factuur in map", f"{row['number']}: {exc}")
             return IN_MAP
@@ -345,7 +375,7 @@ class Invoicing:
                     "invoice_id": row["id"],
                     "number": row["number"],
                     "reason": row["last_error"],
-                    "path": str(self.folder / f"{row['number']}.xml"),
+                    "path": str(self.folder / f"{safe_filename(row['number'])}{MAP_SUFFIX.get(row['format'], '.xml')}"),
                 }
             )
         return items

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetisch voorbeeld met ontbrekende verplichte velden (afnemer en totaal incl. btw). -->
+<fe:Facturae xmlns:fe="http://www.facturae.gob.es/formato/Versiones/Facturaev3_2_2.xml">
+  <Parties>
+    <SellerParty>
+      <LegalEntity><CorporateName>Vendedor S.L.</CorporateName></LegalEntity>
+    </SellerParty>
+    <BuyerParty>
+      <LegalEntity></LegalEntity>
+    </BuyerParty>
+  </Parties>
+  <Invoices>
+    <Invoice>
+      <InvoiceHeader>
+        <InvoiceNumber>FE-2026-002</InvoiceNumber>
+      </InvoiceHeader>
+      <InvoiceIssueData>
+        <IssueDate>2026-10-01</IssueDate>
+        <InvoiceCurrencyCode>EUR</InvoiceCurrencyCode>
+      </InvoiceIssueData>
+      <InvoiceTotals>
+        <TotalGrossAmountBeforeTaxes>1000.00</TotalGrossAmountBeforeTaxes>
+        <TotalTaxOutputs>210.00</TotalTaxOutputs>
+      </InvoiceTotals>
+    </Invoice>
+  </Invoices>
+</fe:Facturae>
