@@ -54,6 +54,29 @@
     --danger: #f2877f; --danger-soft: #3d1f1d; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
   }
 
+  /* Drie weergavethema's; de kleuren en vormen staan hier, de indeling blijft gelijk. */
+  :root[data-theme="editorieel"] {
+    --bg: #f7f4ee; --surface: #fbf9f4; --surface-2: #f1ece2; --border: #e4ded3;
+    --text: #1d1b18; --muted: #8a8378; --accent: #9b7b3c; --accent-soft: #efe6d2;
+    --ok: #4f7a4a; --ok-soft: #e6efe2; --warn: #9b7b3c; --warn-soft: #f3ead6;
+    --danger: #a13d32; --danger-soft: #f6e1dd; --radius: 4px; --shadow: none;
+    --font: Georgia, "Times New Roman", serif;
+  }
+  :root[data-theme="donker"] {
+    --bg: #0b0d10; --surface: #14171c; --surface-2: #1a1f26; --border: #23272f;
+    --text: #f2f4f7; --muted: #7d8594; --accent: #4fd1c5; --accent-soft: #17303a;
+    --ok: #4fd1c5; --ok-soft: #17303a; --warn: #f5b84b; --warn-soft: #3a2c12;
+    --danger: #f2877f; --danger-soft: #3d1f1d; --radius: 14px; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --font: -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  :root[data-theme="zacht"] {
+    --bg: #eef0f7; --surface: #ffffff; --surface-2: #f6f7fc; --border: #e3e5f2;
+    --text: #1b1d2a; --muted: #7a7f96; --accent: #6d5efc; --accent-soft: #ecebff;
+    --ok: #1f9d6b; --ok-soft: #e3f6ee; --warn: #b26a00; --warn-soft: #fdf1dc;
+    --danger: #d9415b; --danger-soft: #fde4e9; --radius: 18px; --shadow: 0 10px 30px rgba(40, 44, 90, .07);
+    --font: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
@@ -412,6 +435,10 @@
     WHATSAPP_VERIFY_TOKEN: "s-waverify",
     PEPPOL_API_KEY: "s-pepkey",
   };
+  const THEMES = [["editorieel", "Editorieel (crème, serif)"], ["donker", "Donker (modern)"], ["zacht", "Zacht (lichte kaarten)"]];
+  function applyTheme(name) {
+    document.documentElement.dataset.theme = THEMES.some(([v]) => v === name) ? name : "editorieel";
+  }
   const INVOICE_TABS = [
     { slug: "wacht-op-betaling", label: "Wacht op betaling", status: "wacht op betaling" },
     { slug: "te-verzenden", label: "Te verzenden", status: "te verzenden" },
@@ -1270,6 +1297,13 @@
       h("p", { class: "hint flush", text: "Wijzigingen werken meteen op de server. Een herstart is niet nodig." }),
       errorBox,
 
+      settingsSection("Weergave",
+        "Kies de uitstraling van de inbox. Je ziet de wijziging meteen.",
+        field("s-theme", "Thema",
+          h("select", { id: "s-theme", class: "input", onchange: (e) => applyTheme(e.target.value) },
+            ...THEMES.map(([value, label]) => h("option", { value, selected: (v.WERKER_THEME || "editorieel") === value, text: label })))),
+      ),
+
       settingsSection("Automatisch verzenden",
         "Werker kan antwoorden zelf verzenden als het zeker genoeg is. Al het overige wacht op jouw goedkeuring.",
         h("div", { class: "notice warn" }, h("div", { text: "Auto-verzenden stuurt zonder je te vragen. Zet het alleen aan voor prijsvragen met gecontroleerde prijs." })),
@@ -1371,6 +1405,7 @@
       WERKER_PRICES_CSV_URL: val("s-prices"),
       WERKER_IMESSAGE: checked("s-imessage") ? "true" : "false",
       WHATSAPP_PHONE_NUMBER_ID: val("s-waid"),
+      WERKER_THEME: val("s-theme"),
       PEPPOL_PROVIDER: val("s-pepprov"),
       PEPPOL_LEGAL_ENTITY_ID: val("s-pepleg"),
     };
@@ -1871,6 +1906,7 @@
 
   if (!location.hash) history.replaceState(null, "", "#pending");
   loadStats().catch(() => {});
+  api("/api/settings").then((data) => applyTheme(data.values.WERKER_THEME)).catch(() => {});
   onRoute();
 })();
 </script>

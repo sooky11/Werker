@@ -47,6 +47,7 @@ SETTING_KEYS = (
     "WERKER_MAILBOXES",
     "PEPPOL_PROVIDER",
     "PEPPOL_LEGAL_ENTITY_ID",
+    "WERKER_THEME",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -62,6 +63,7 @@ DEFAULTS = {
     "WERKER_MAILBOXES": "[]",
     "PEPPOL_PROVIDER": "",
     "PEPPOL_LEGAL_ENTITY_ID": "",
+    "WERKER_THEME": "editorieel",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
@@ -90,6 +92,7 @@ def _validate_values(values: Mapping[str, Any]) -> None:
         "WERKER_SYNC_MINUTES": lambda v: float(v) >= 0,
         "WERKER_AUTOSEND": lambda v: str(v) in ("true", "false"),
         "WERKER_IMESSAGE": lambda v: str(v) in ("true", "false"),
+        "WERKER_THEME": lambda v: str(v) in ("editorieel", "donker", "zacht"),
     }
     for key, value in values.items():
         check = checks.get(key)

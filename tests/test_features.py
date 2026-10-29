@@ -360,3 +360,13 @@ def test_invalid_number_setting_is_refused_and_nothing_is_saved(tmp_path):
         runtime.update(values={"WERKER_AUTOSEND": "true", "WERKER_MIN_CONFIDENCE": "abc"})
     assert "WERKER_AUTOSEND" not in store.get_settings()
     store.close()
+
+
+def test_theme_defaults_and_accepts_only_known_themes(tmp_path):
+    runtime, store = _runtime(tmp_path)
+    assert runtime.settings_view()["values"]["WERKER_THEME"] == "editorieel"
+    runtime.update(values={"WERKER_THEME": "zacht"})
+    assert runtime.settings_view()["values"]["WERKER_THEME"] == "zacht"
+    with pytest.raises(ValueError):
+        runtime.update(values={"WERKER_THEME": "neon"})
+    store.close()
