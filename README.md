@@ -21,7 +21,7 @@ pip install -e ".[dev]"            # voor Gmail: pip install -e ".[dev,gmail]"
 pytest
 ```
 
-## Instellingen (omgevingsvariabelen)
+## Omgevingsvariabelen (optioneel, voor servers)
 
 | Variabele | Doel |
 |---|---|
@@ -64,6 +64,25 @@ Open `http://127.0.0.1:8000`. Links staan de categorieën met aantallen, in het 
 - Synchroniseer haalt nieuwe mail op en verwerkt die direct.
 
 De pagina gebruikt geen externe bestanden; alles staat in `src/werker/static/index.html`.
+
+## Instellingen
+
+Alles wat je nodig hebt staat op het instelscherm (tandwiel in de inbox): API-sleutel, automatisch verzenden, mailboxen, WhatsApp en iMessage. Wijzigingen gelden meteen, zonder herstart.
+
+- Niet-geheime instellingen komen in de database.
+- API-sleutels en wachtwoorden komen in `secrets.json` in de datamap (alleen leesbaar voor jouw gebruiker). Ze worden nooit teruggetoond; het scherm laat alleen zien dat ze ingesteld zijn.
+- Waarden uit de omgeving (bijvoorbeeld Docker) gelden als standaard; het instelscherm wint.
+
+De app start ook zonder API-sleutel, zodat je eerst de instellingen kunt invullen.
+
+## Klanten
+
+Berichten worden automatisch aan een klant gekoppeld op basis van het e-mailadres of telefoonnummer. Elke klant heeft een tijdlijn van alles wat er via mail, WhatsApp en iMessage binnenkwam, met de bijbehorende concepten. Een klant hernoem je, voorzie je van notities, of voeg je samen met een andere (bijvoorbeeld als iemand van twee adressen schrijft). Let op: een Nederlands nummer met 06 en een nummer met +31 worden nu als verschillende nummers gezien; voeg die samen als dat nodig is.
+
+## Gerichte aanpassing en inplannen
+
+- **Vervolgvragen:** stuurt een klant een tweede bericht in dezelfde draad, dan past Werker het lopende concept alleen op de juiste plekken aan. De rest blijft staan. Lukt dat niet veilig, dan schrijft het een nieuw concept. Bij het concept zie je wat er veranderd is en kun je de vorige versie bekijken.
+- **Inplannen:** bij goedkeuren kies je "Nu verzenden", een vast tijdstip, of "Op een tijdstip…". Een ingepland bericht kun je annuleren; het gaat dan terug naar de wachtrij. Verzenden gebeurt op de achtergrond, ook als het venster dicht is (bureaubladprogramma) of de server draait.
 
 ## Kanalen
 
