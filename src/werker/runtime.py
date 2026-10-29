@@ -48,6 +48,8 @@ SETTING_KEYS = (
     "PEPPOL_PROVIDER",
     "PEPPOL_LEGAL_ENTITY_ID",
     "WERKER_THEME",
+    "WERKER_OUTLOOK_CLIENT_ID",
+    "WERKER_OUTLOOK_TOKEN_CACHE",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -64,6 +66,8 @@ DEFAULTS = {
     "PEPPOL_PROVIDER": "",
     "PEPPOL_LEGAL_ENTITY_ID": "",
     "WERKER_THEME": "editorieel",
+    "WERKER_OUTLOOK_CLIENT_ID": "",
+    "WERKER_OUTLOOK_TOKEN_CACHE": "",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
