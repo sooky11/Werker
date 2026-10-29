@@ -1,0 +1,23 @@
+services:
+  werker:
+    build: .
+    image: werker:latest
+    env_file: .env
+    environment:
+      WERKER_DB: /data/werker.db
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  sync:
+    build: .
+    image: werker:latest
+    env_file: .env
+    environment:
+      WERKER_DB: /data/werker.db
+    volumes:
+      - ./data:/data
+    command: sh -c "while true; do werker sync; sleep 3600; done"
+    restart: unless-stopped
