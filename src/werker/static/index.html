@@ -333,6 +333,35 @@
 
   .loading { color: var(--muted); padding: 24px; font-size: 14px; }
 
+  /* Herinneringen, rapporten, teamaccounts en AVG */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .stat-grid .card { margin-bottom: 0; }
+  .stat-value {
+    font-size: 30px; font-weight: 650; letter-spacing: -.02em; line-height: 1.15;
+    font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+  }
+  .stat-value.warn { color: var(--danger); }
+  .stat-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+  .stat-list li { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+  .stat-list strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-hint { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+  .user-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr) auto;
+    gap: 8px; align-items: center; margin-bottom: 8px;
+  }
+  .user-row .input { min-width: 0; }
+  dialog.confirm {
+    width: min(460px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface); color: var(--text); padding: 22px; box-shadow: var(--shadow);
+  }
+  dialog.confirm::backdrop { background: rgba(20, 18, 15, .45); }
+  dialog.confirm h2 { margin: 0 0 8px; font-size: 18px; }
+  dialog.confirm p { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+  dialog.confirm .actions { margin-top: 16px; }
+  @media (max-width: 560px) {
+    .user-row { grid-template-columns: 1fr; }
+  }
+
   /* Responsive */
   @media (max-width: 1100px) {
     .layout { grid-template-columns: 200px minmax(280px, 340px) minmax(0, 1fr); }
@@ -477,6 +506,11 @@
     mapFolder: "",
     invoiceCount: null,
     selectedInvoice: null,
+    reminders: [],
+    reminderCount: null,
+    selectedReminder: null, // id (als tekst) van de geopende herinnering
+    reportDays: 30,
+    privacyLog: [],
     loadId: 0,
     routeId: 0,
   };
@@ -629,7 +663,8 @@
       state.listMode === "messages" && state.tab === tab.id,
       countFor(tab),
       tab.id === "pending",
-    )));
+    )), navButton("Herinneringen", "#herinneringen", state.listMode === "reminders", state.reminderCount ?? 0, true),
+    navButton("Rapporten", "#rapporten", state.listMode === "reports"));
     $("#nav-clients").replaceChildren(navButton("Alle klanten", "#klanten", state.listMode === "clients"));
     $("#nav-peppol").replaceChildren(navButton("Peppol-facturen", "#peppol", state.listMode === "invoices", state.invoiceCount, true));
     $("#seg").hidden = state.listMode !== "invoices";
@@ -639,7 +674,8 @@
 
   function updatePlaceholder() {
     $("#q").placeholder = state.listMode === "clients" ? "Zoek klanten"
-      : state.listMode === "invoices" ? "Zoek facturen" : "Zoeken";
+      : state.listMode === "invoices" ? "Zoek facturen"
+      : state.listMode === "reminders" ? "Zoek herinneringen" : "Zoeken";
   }
 
   function currentTab() {
@@ -655,6 +691,9 @@
     });
     document.querySelectorAll(".item[data-invoice]").forEach((el) => {
       el.setAttribute("aria-selected", el.dataset.invoice === state.selectedInvoice ? "true" : "false");
+    });
+    document.querySelectorAll(".item[data-reminder]").forEach((el) => {
+      el.setAttribute("aria-selected", el.dataset.reminder === state.selectedReminder ? "true" : "false");
     });
   }
 
@@ -1156,6 +1195,11 @@
         ))
       : [h("p", { class: "hint flush", text: "Nog geen berichten van deze klant." })];
 
+    const exportButton = h("button", { class: "btn", type: "button", text: "Exporteren" });
+    exportButton.addEventListener("click", () => exportClient(id, exportButton));
+    const eraseButton = h("button", { class: "btn danger", type: "button", text: "Verwijderen" });
+    eraseButton.addEventListener("click", () => openEraseDialog(id, savedName));
+
     setReader(h("div", { class: "reader-inner" },
       h("a", { class: "link back", href: "#klanten", text: "← Alle klanten" }),
       title,
@@ -1185,6 +1229,11 @@
         ),
       ),
       h("div", { class: "card" },
+        h("h3", { text: "Gegevens van de klant" }),
+        h("p", { class: "hint flush", text: "Exporteer alle gegevens van deze klant als bestand, of verwijder ze helemaal. Facturen blijven altijd bewaard." }),
+        h("div", { class: "actions" }, exportButton, eraseButton),
+      ),
+      h("div", { class: "card" },
         h("h3", { text: "Berichten" }),
         timeline,
       ),
@@ -1198,8 +1247,12 @@
     state.reader = "settings";
     setReader(loadingNode("Instellingen laden…"));
     try {
-      const data = await api("/api/settings");
+      const [data, privacyLog] = await Promise.all([
+        api("/api/settings"),
+        api("/api/privacy/log").catch(() => []),
+      ]);
       if (routeId !== state.routeId) return;
+      state.privacyLog = privacyLog;
       renderSettings(data);
     } catch (error) {
       if (routeId !== state.routeId) return;
@@ -1277,7 +1330,28 @@
     return card;
   }
 
-  function renderSettings(data) {
+  const ROLES = [["beheerder", "Beheerder"], ["medewerker", "Medewerker"]];
+
+  function userRow(user = {}) {
+    const isNew = !user.name;
+    const row = h("div", { class: "user-row", "data-user-row": "" },
+      h("input", { class: "input", type: "text", value: user.name ?? "", placeholder: "gebruikersnaam", "aria-label": "Gebruikersnaam", autocomplete: "off", "data-u": "name" }),
+      h("select", { class: "input", "aria-label": "Rol", "data-u": "role" },
+        ROLES.map(([value, label]) => h("option", { value, selected: (user.role || "medewerker") === value, text: label }))),
+      h("input", {
+        class: "input",
+        type: "password",
+        placeholder: isNew ? "wachtwoord" : "laat leeg om te behouden",
+        "aria-label": "Wachtwoord",
+        autocomplete: "new-password",
+        "data-u": "password",
+      }),
+      h("button", { class: "btn danger small", type: "button", text: "Verwijderen", onclick: () => row.remove() }),
+    );
+    return row;
+  }
+
+  function renderSettings(data, privacyLog = state.privacyLog) {
     const v = data.values || {};
     const s = data.secrets_set || {};
     const secretPlaceholder = (key) => (s[key] ? PLACEHOLDER_SET : PLACEHOLDER_UNSET);
@@ -1291,6 +1365,16 @@
 
     const errorBox = h("div", { id: "settings-error", class: "notice warn", role: "alert", hidden: true });
     const mailboxList = h("div", { id: "mailboxes" }, (data.mailboxes || []).map((mb) => mailboxCard(mb)));
+    const usersList = h("div", { id: "users" }, (data.users || []).map((user) => userRow(user)));
+    const logEntries = privacyLog || [];
+    const retentionHint = h("div", { class: "hint flush" });
+    const setRetentionHint = (value) => {
+      const days = Number(value);
+      retentionHint.textContent = !days
+        ? "Uit: berichten worden niet automatisch verwijderd."
+        : `Berichten ouder dan ${days} dagen worden automatisch verwijderd. Facturen blijven altijd bewaard.`;
+    };
+    setRetentionHint(v.WERKER_RETENTION_DAYS ?? "0");
 
     const form = h("form", { class: "reader-inner settings", id: "settings-form", onsubmit: saveSettings },
       h("h1", { text: "Instellingen" }),
@@ -1349,6 +1433,24 @@
         ),
       ),
 
+      settingsSection("Bewaren en verwijderen",
+        "Werker kan oude berichten automatisch verwijderen. Facturen worden nooit automatisch verwijderd.",
+        h("div", { class: "field" },
+          h("label", { for: "s-retention", text: "Berichten bewaren (dagen)" }),
+          h("input", {
+            id: "s-retention",
+            class: "input",
+            type: "number",
+            step: "1",
+            min: "0",
+            inputmode: "numeric",
+            value: v.WERKER_RETENTION_DAYS ?? "0",
+            oninput: (e) => setRetentionHint(e.target.value),
+          }),
+          retentionHint,
+        ),
+      ),
+
       settingsSection("Kanalen",
         "Welke berichtenbronnen Werker gebruikt. Gevoelige velden worden nooit getoond.",
         checkField("s-imessage", "iMessage gebruiken", v.WERKER_IMESSAGE === "true", "Alleen op een Mac."),
@@ -1373,6 +1475,30 @@
           "Laat leeg om de bestaande sleutel te behouden."),
       ),
 
+      settingsSection("Agenda",
+        "Werker kan afspraken in je agenda zetten.",
+        h("div", { class: "grid-2" },
+          field("s-calid", "Agenda-ID",
+            h("input", { id: "s-calid", class: "input", type: "text", value: v.WERKER_CALENDAR_ID ?? "" }),
+            "Bijvoorbeeld primary of het e-mailadres van de agenda."),
+          field("s-caltoken", "Tokenbestand",
+            h("input", { id: "s-caltoken", class: "input", type: "text", value: v.WERKER_CALENDAR_TOKEN ?? "" }),
+            "Pad naar het tokenbestand op de server. Het token heeft de scope calendar.events nodig."),
+        ),
+      ),
+
+      settingsSection("Outlook",
+        "Outlook-berichten lezen en beantwoorden via Microsoft Graph.",
+        h("div", { class: "grid-2" },
+          field("s-olclient", "Client-ID van de Azure-app",
+            h("input", { id: "s-olclient", class: "input", type: "text", value: v.WERKER_OUTLOOK_CLIENT_ID ?? "" }),
+            "Voer daarna één keer het commando werker outlook-login uit in de terminal."),
+          field("s-oltoken", "Tokenbestand (optioneel)",
+            h("input", { id: "s-oltoken", class: "input", type: "text", value: v.WERKER_OUTLOOK_TOKEN_CACHE ?? "" }),
+            "Laat leeg om het standaardbestand naast de database te gebruiken."),
+        ),
+      ),
+
       settingsSection("Mailboxen",
         "Elke mailbox wordt ingelezen via IMAP en beantwoord via SMTP. Laat het wachtwoord leeg om het bestaande te behouden.",
         mailboxList,
@@ -1380,6 +1506,26 @@
           h("button", { class: "btn", type: "button", text: "Mailbox toevoegen",
             onclick: () => mailboxList.append(mailboxCard({})) }),
         ),
+      ),
+
+      settingsSection("Teamaccounts",
+        "Geef collega's een eigen inlog. Een beheerder mag instellingen en gebruikers wijzigen; een medewerker niet. Wachtwoorden worden nooit getoond.",
+        usersList,
+        h("div", { class: "actions" },
+          h("button", { class: "btn", type: "button", text: "Gebruiker toevoegen",
+            onclick: () => usersList.append(userRow({})) }),
+        ),
+      ),
+
+      settingsSection("Verwijderlogboek",
+        "Elke verwijdering van een klant staat hier. Er staan geen namen of gegevens van de klant in.",
+        logEntries.length
+          ? h("ul", { class: "log-list" }, logEntries.map((entry) => h("li", {},
+              h("span", { class: "log-time", text: formatFull(entry.at) }),
+              h("strong", { text: "Klant verwijderd" }),
+              h("span", { text: ` — ${entry.messages_deleted ?? 0} berichten, ${entry.drafts_deleted ?? 0} concepten, ${entry.identifiers_deleted ?? 0} contactgegevens, ${entry.audit_deleted ?? 0} activiteitsregels. ${entry.invoices_unlinked ?? 0} facturen zijn bewaard met een verwijderde koper.` }),
+            )))
+          : h("p", { class: "hint flush", text: "Er is nog niets verwijderd." }),
       ),
 
       h("div", { class: "form-footer" },
@@ -1408,6 +1554,11 @@
       WERKER_THEME: val("s-theme"),
       PEPPOL_PROVIDER: val("s-pepprov"),
       PEPPOL_LEGAL_ENTITY_ID: val("s-pepleg"),
+      WERKER_RETENTION_DAYS: val("s-retention") || "0",
+      WERKER_CALENDAR_ID: val("s-calid"),
+      WERKER_CALENDAR_TOKEN: val("s-caltoken"),
+      WERKER_OUTLOOK_CLIENT_ID: val("s-olclient"),
+      WERKER_OUTLOOK_TOKEN_CACHE: val("s-oltoken"),
     };
     // Geheimen: alleen meesturen als er iets is ingetypt.
     const secrets = {};
@@ -1433,7 +1584,15 @@
       if (password) mailbox.password = password;
       return mailbox;
     });
-    return { values, secrets, mailboxes };
+    // Alle teamaccounts in de lijst; een leeg wachtwoord laat het bestaande wachtwoord staan.
+    const users = [...document.querySelectorAll("[data-user-row]")].map((row) => {
+      const pick = (key) => row.querySelector(`[data-u="${key}"]`);
+      const user = { name: pick("name").value.trim(), role: pick("role").value };
+      const password = pick("password").value;
+      if (password) user.password = password;
+      return user;
+    }).filter((user) => user.name);
+    return { values, secrets, mailboxes, users };
   }
 
   async function saveSettings(event) {
@@ -1750,25 +1909,338 @@
     ));
   }
 
+  /* ---------- herinneringen ---------- */
+
+  async function loadReminderList() {
+    const loadId = ++state.loadId;
+    $("#list-title").textContent = "Herinneringen";
+    try {
+      const reminders = await api("/api/reminders");
+      if (loadId !== state.loadId) return;
+      state.reminders = reminders;
+      state.reminderCount = reminders.length;
+      renderNav();
+      renderReminderList();
+    } catch (error) {
+      if (loadId !== state.loadId) return;
+      $("#list-sub").textContent = `Kon de herinneringen niet laden: ${error.message}`;
+    }
+  }
+
+  function renderReminderList() {
+    const items = state.reminders.filter((r) => matchesQuery(r.number, r.buyer_name));
+    const n = items.length;
+    $("#list-sub").textContent = n === 0
+      ? (state.query ? "Geen resultaten" : "Niets te doen")
+      : `${n} ${n === 1 ? "herinnering wacht" : "herinneringen wachten"} op goedkeuring`;
+    if (n === 0) {
+      $("#items").replaceChildren(h("div", {
+        class: "loading",
+        text: state.query ? "Geen herinneringen gevonden." : "Er wachten geen herinneringen op goedkeuring.",
+      }));
+      return;
+    }
+    $("#items").replaceChildren(...items.map((r) => h("button", {
+      class: "item",
+      type: "button",
+      role: "option",
+      "aria-selected": String(r.id) === state.selectedReminder ? "true" : "false",
+      "data-reminder": String(r.id),
+      onclick: () => { location.hash = `herinnering/${encodeURIComponent(r.id)}`; },
+    },
+      h("div", { class: "item-top" },
+        h("span", { class: "item-sender", text: r.buyer_name || "(onbekende koper)" }),
+        h("span", { text: money(r.amount, r.currency) }),
+      ),
+      h("div", { class: "item-subject", text: `Factuur ${r.number}` }),
+      h("div", { class: "item-summary", text: r.due_date ? `Vervalt ${formatDate(r.due_date)}` : "" }),
+      h("div", { class: "chip-row" },
+        r.recipient ? null : h("span", { class: "chip klacht", text: "Geen adres bekend" }),
+      ),
+    )));
+  }
+
+  async function openReminder(id, routeId) {
+    const key = String(id);
+    state.reader = "reminder";
+    state.selected = null;
+    state.selectedClient = null;
+    state.selectedInvoice = null;
+    state.selectedReminder = key;
+    highlightItems();
+    setReader(loadingNode("Herinnering openen…"));
+    try {
+      const reminders = await api("/api/reminders");
+      if (routeId !== state.routeId) return;
+      const reminder = reminders.find((r) => String(r.id) === key);
+      if (!reminder) {
+        setReader(errorNode("Deze herinnering staat niet meer open", "Ze is al verzonden of afgewezen."));
+        return;
+      }
+      renderReminder(reminder);
+    } catch (error) {
+      if (routeId !== state.routeId) return;
+      setReader(errorNode("Kon de herinnering niet openen", error.message));
+    }
+  }
+
+  function renderReminder(r) {
+    const id = String(r.id);
+    const noAddress = !r.recipient;
+    const textarea = h("textarea", { class: "input", rows: "10", "aria-label": "Tekst van de herinnering" });
+    textarea.value = r.body || "";
+    const reject = h("button", { class: "btn danger", type: "button", text: "Afwijzen" });
+    const approve = h("button", { class: "btn primary", type: "button", text: "Goedkeuren en verzenden", disabled: noAddress });
+    reject.addEventListener("click", () => rejectReminder(id, reject));
+    approve.addEventListener("click", () => approveReminder(id, textarea, approve));
+
+    const rows = [
+      ["Klant", r.buyer_name || "(onbekend)"],
+      ["Factuur", r.number],
+      ["Bedrag", money(r.amount, r.currency)],
+      ["Vervaldatum", formatDate(r.due_date)],
+      ["Ontvanger", r.recipient || "Geen adres bekend"],
+      ["Onderwerp", r.subject],
+    ].filter(([, value]) => value);
+
+    setReader(h("div", { class: "reader-inner" },
+      h("a", { class: "link back", href: "#herinneringen", text: "← Alle herinneringen" }),
+      h("h1", { text: `Herinnering factuur ${r.number}` }),
+      h("div", { class: "meta" }, h("span", { class: "chip wacht", text: "Wacht op goedkeuring" })),
+      noAddress ? h("div", { class: "notice warn" }, h("div", {},
+        h("strong", { text: "Geen adres bekend" }),
+        h("div", { text: "Werker kan deze herinnering niet verzenden: er is geen e-mailadres bekend voor deze klant. Wijs de herinnering af of neem zelf contact op." }),
+      )) : null,
+      h("div", { class: "card mt" },
+        h("h3", { text: "Gegevens" }),
+        h("dl", { class: "kv" }, rows.flatMap(([k, value]) => [h("dt", { text: k }), h("dd", { text: String(value) })])),
+      ),
+      h("div", { class: "card draft" },
+        h("h3", { text: "Tekst van de herinnering" }),
+        textarea,
+        h("div", { class: "hint", text: "Wijzig de tekst gerust. Er wordt pas verzonden na goedkeuring." }),
+      ),
+      r.last_error ? h("div", { class: "notice warn" }, h("div", {},
+        h("strong", { text: "Laatste fout" }),
+        h("div", { text: r.last_error }),
+      )) : null,
+      h("div", { class: "actions" }, reject, h("span", { class: "spacer" }), approve),
+    ));
+  }
+
+  async function approveReminder(id, textarea, button) {
+    const body = textarea.value.trim();
+    if (!body) { toast("De tekst is leeg.", true); return; }
+    button.disabled = true;
+    try {
+      await api(`/api/reminders/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ body }) });
+      toast("Herinnering verzonden");
+      location.hash = "herinneringen";
+      loadStats().catch(() => {});
+    } catch (error) {
+      toast(error.message, true);
+      button.disabled = false;
+    }
+  }
+
+  async function rejectReminder(id, button) {
+    if (!confirm("Deze herinnering afwijzen? Er wordt niets verzonden.")) return;
+    button.disabled = true;
+    try {
+      await api(`/api/reminders/${encodeURIComponent(id)}/reject`, { method: "POST" });
+      toast("Herinnering afgewezen");
+      location.hash = "herinneringen";
+      loadStats().catch(() => {});
+    } catch (error) {
+      toast(error.message, true);
+      button.disabled = false;
+    }
+  }
+
+  /* ---------- rapporten ---------- */
+
+  function formatMinutes(minutes) {
+    if (minutes === null || minutes === undefined) return "—";
+    if (minutes < 60) return `${Math.round(minutes)} min`;
+    return `${(minutes / 60).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} uur`;
+  }
+
+  function statCard(label, value, { hint = "", warn = false, lines = [] } = {}) {
+    return h("div", { class: "card" },
+      h("h3", { text: label }),
+      h("div", { class: `stat-value${warn ? " warn" : ""}`, text: value }),
+      lines.length ? h("ul", { class: "stat-list" },
+        lines.map(([k, v]) => h("li", {}, h("span", { text: k }), h("strong", { text: v })))) : null,
+      hint ? h("p", { class: "stat-hint", text: hint }) : null,
+    );
+  }
+
+  async function openReports(routeId) {
+    state.reader = "reports";
+    state.selected = null;
+    state.selectedClient = null;
+    state.selectedInvoice = null;
+    state.selectedReminder = null;
+    highlightItems();
+    $("#list-title").textContent = "Rapporten";
+    $("#list-sub").textContent = `Laatste ${state.reportDays} dagen`;
+    $("#items").replaceChildren(h("div", { class: "loading", text: "Overzicht van berichten, reactietijd en facturen." }));
+    setReader(loadingNode("Rapporten laden…"));
+    try {
+      const data = await api(`/api/reports?days=${state.reportDays}`);
+      if (routeId !== state.routeId) return;
+      renderReports(data);
+    } catch (error) {
+      if (routeId !== state.routeId) return;
+      setReader(errorNode("Kon de rapporten niet laden", error.message));
+    }
+  }
+
+  function renderReports(d) {
+    const days = d.dagen || state.reportDays;
+    const messages = d.berichten || {};
+    const response = d.responstijd || {};
+    const open = d.openstaand || {};
+    const overdue = d.verlopen || {};
+    const overdueCount = Number(overdue.aantal) || 0;
+    const perChannel = Object.entries(messages.per_kanaal || {}).sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => [channelLabel(key), String(count)]);
+    const perIntent = Object.entries(messages.per_intentie || {}).sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => `${key === "onbekend" ? "Onbekend" : (INTENT_LABELS[key] || key)} ${count}`);
+    const periods = [7, 30, 90].map((n) => h("button", {
+      class: "seg-btn",
+      type: "button",
+      "aria-pressed": n === state.reportDays ? "true" : "false",
+      text: `${n} dagen`,
+      onclick: () => { state.reportDays = n; openReports(state.routeId); },
+    }));
+
+    setReader(h("div", { class: "reader-inner" },
+      h("h1", { text: "Rapporten" }),
+      h("p", { class: "section-intro", text: `Overzicht van de laatste ${days} dagen. Facturen tellen mee zoals ze nu staan.` }),
+      h("div", { class: "seg", role: "group", "aria-label": "Periode" }, periods),
+      h("div", { class: "stat-grid mt" },
+        statCard("Berichten", String(messages.totaal ?? 0), {
+          lines: perChannel,
+          hint: perIntent.length ? `Onderwerpen: ${perIntent.join(", ")}` : "Geen berichten in deze periode.",
+        }),
+        statCard("Gemiddelde reactietijd", formatMinutes(response.gemiddeld_minuten), {
+          hint: [response.toelichting, response.antwoorden ? `Gebaseerd op ${response.antwoorden} antwoorden.` : ""]
+            .filter(Boolean).join(" "),
+        }),
+        statCard("Prijsvragen beantwoord", String(d.prijsvragen_beantwoord ?? 0), {
+          hint: "Prijsvragen waar in deze periode een antwoord op is verstuurd.",
+        }),
+        statCard("Openstaande facturen", String(open.aantal ?? 0), {
+          lines: [["Totaal", money(open.totaal, "EUR")]],
+          hint: "Facturen die wachten op betaling of nog verzonden moeten worden.",
+        }),
+        statCard("Verlopen facturen", String(overdueCount), {
+          warn: overdueCount > 0,
+          lines: [["Totaal", money(overdue.totaal, "EUR")]],
+          hint: "De vervaldatum is voorbij en de factuur is nog niet betaald.",
+        }),
+      ),
+    ));
+  }
+
+  /* ---------- klantgegevens exporteren en verwijderen ---------- */
+
+  async function exportClient(id, button) {
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/clients/${encodeURIComponent(id)}/export`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error((data && typeof data.detail === "string" && data.detail) || "Export mislukt");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = h("a", { href: url, download: `werker-klant-${id}.json`, hidden: true });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast("Export gedownload");
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function openEraseDialog(id, name) {
+    const titleId = uid("erase");
+    const input = h("input", { id: uid("erase-name"), class: "input", type: "text", autocomplete: "off" });
+    const cancel = h("button", { class: "btn", type: "button", text: "Annuleren" });
+    const confirmButton = h("button", { class: "btn danger", type: "button", disabled: true, text: "Definitief verwijderen" });
+    const matches = () => input.value.trim() === name.trim();
+    const dialog = h("dialog", { class: "confirm", "aria-labelledby": titleId },
+      h("h2", { id: titleId, text: "Klant verwijderen" }),
+      h("p", { text: `Je verwijdert ${name}. Dan verdwijnen de klant en alles wat daarbij hoort: berichten, concepten, contactgegevens en activiteit. Facturen blijven bewaard, maar de naam van de koper wordt op de factuur vervangen door “verwijderd”.` }),
+      h("p", { text: "Dit kun je niet ongedaan maken. Exporteer de gegevens eerst als je een kopie wilt bewaren." }),
+      h("div", { class: "field" },
+        h("label", { for: input.id, text: `Typ de naam van de klant om te bevestigen: ${name}` }),
+        input,
+      ),
+      h("div", { class: "actions" }, cancel, confirmButton),
+    );
+    input.addEventListener("input", () => { confirmButton.disabled = !matches(); });
+    cancel.addEventListener("click", () => dialog.close());
+    confirmButton.addEventListener("click", async () => {
+      confirmButton.disabled = true;
+      try {
+        await api(`/api/clients/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          body: JSON.stringify({ confirm: input.value }),
+        });
+        dialog.close();
+        toast("Klant verwijderd");
+        loadStats().catch(() => {});
+        location.hash = "klanten";
+      } catch (error) {
+        toast(error.message, true);
+        confirmButton.disabled = !matches();
+      }
+    });
+    dialog.addEventListener("close", () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
+  }
+
   /* ---------- data verversen ---------- */
 
   async function loadStats() {
-    const [stats, toSend, inMap] = await Promise.all([
+    const [stats, toSend, inMap, reminders] = await Promise.all([
       api("/api/stats"),
       api(`/api/invoices?status=${encodeURIComponent("te verzenden")}`).catch(() => []),
       api(`/api/invoices?status=${encodeURIComponent("in map")}`).catch(() => []),
+      api("/api/reminders").catch(() => null),
     ]);
     state.stats = stats;
     state.invoiceCount = toSend.length + inMap.length;
+    if (reminders) state.reminderCount = reminders.length;
     renderNav();
+  }
+
+  // Laadt de lijst die bij de huidige weergave hoort (berichten, klanten, facturen of herinneringen).
+  function loadCurrentList() {
+    if (state.listMode === "clients") return loadClients();
+    if (state.listMode === "invoices") return loadInvoiceList();
+    if (state.listMode === "reminders") return loadReminderList();
+    if (state.listMode === "reports") return Promise.resolve();
+    return loadList();
   }
 
   async function refresh() {
     try {
       await loadStats();
-      if (state.listMode === "clients") await loadClients();
-      else if (state.listMode === "invoices") await loadInvoiceList();
-      else await loadList();
+      if (state.listMode === "reports") {
+        if (state.reader === "reports") await openReports(state.routeId);
+      } else {
+        await loadCurrentList();
+      }
       if (state.reader === "message" && state.selected !== null) await selectMessage(state.selected);
       if (state.reader === "invoice" && state.selectedInvoice !== null) await openInvoice(state.selectedInvoice, state.routeId);
     } catch (error) {
@@ -1788,6 +2260,9 @@
     if (head === "klant" && arg) return { view: "client", id: arg };
     if (head === "bericht" && arg) return { view: "message", id: arg };
     if (head === "instellingen") return { view: "settings" };
+    if (head === "herinneringen") return { view: "reminders" };
+    if (head === "herinnering" && arg) return { view: "reminder", id: arg };
+    if (head === "rapporten") return { view: "reports" };
     if (head === "peppol") {
       const slug = INVOICE_TABS.some((t) => t.slug === arg) ? arg : "wacht-op-betaling";
       return { view: "invoices", tab: slug };
@@ -1799,10 +2274,13 @@
 
   function showEmptyReader() {
     state.reader = "empty";
-    const hint = state.listMode === "clients"
-      ? "Kies een klant uit de lijst."
+    const mode = state.listMode;
+    const hint = mode === "clients" ? "Kies een klant uit de lijst."
+      : mode === "reminders" ? "Kies een herinnering uit de lijst."
       : h("div", {}, "Gebruik ", h("kbd", { text: "j" }), " en ", h("kbd", { text: "k" }), " om door de lijst te bewegen.");
-    setReader(h("div", { class: "empty" }, h("div", {}, h("h3", { text: state.listMode === "clients" ? "Geen klant geopend" : "Kies een bericht" }), hint)));
+    const title = mode === "clients" ? "Geen klant geopend"
+      : mode === "reminders" ? "Geen herinnering geopend" : "Kies een bericht";
+    setReader(h("div", { class: "empty" }, h("div", {}, h("h3", { text: title }), hint)));
   }
 
   async function onRoute() {
@@ -1835,13 +2313,23 @@
       Object.assign(state, { listMode: "invoices", selected: null, selectedClient: null, selectedInvoice: String(route.id) });
       renderNav(); updatePlaceholder();
       await Promise.all([loadInvoiceList(), openInvoice(route.id, routeId)]);
+    } else if (route.view === "reminders") {
+      Object.assign(state, { listMode: "reminders", selected: null, selectedClient: null, selectedInvoice: null, selectedReminder: null });
+      renderNav(); updatePlaceholder();
+      showEmptyReader();
+      await loadReminderList();
+    } else if (route.view === "reminder") {
+      Object.assign(state, { listMode: "reminders", selected: null, selectedClient: null, selectedInvoice: null });
+      renderNav(); updatePlaceholder();
+      await Promise.all([loadReminderList(), openReminder(route.id, routeId)]);
+    } else if (route.view === "reports") {
+      Object.assign(state, { listMode: "reports", selected: null, selectedClient: null, selectedInvoice: null, selectedReminder: null });
+      renderNav(); updatePlaceholder();
+      await openReports(routeId);
     } else if (route.view === "settings") {
       Object.assign(state, { selected: null, selectedClient: null });
       renderNav(); updatePlaceholder();
-      await Promise.all([
-        state.listMode === "clients" ? loadClients() : loadList(),
-        openSettings(routeId),
-      ]);
+      await Promise.all([loadCurrentList(), openSettings(routeId)]);
     }
   }
 
@@ -1876,7 +2364,8 @@
       state.query = value;
       if (state.listMode === "clients") loadClients();
       else if (state.listMode === "invoices") renderInvoiceView();
-      else loadList();
+      else if (state.listMode === "reminders") renderReminderList();
+      else if (state.listMode === "messages") loadList();
     }, 250);
   });
 
