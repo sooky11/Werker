@@ -17,13 +17,13 @@ CHANNEL = "mail"
 _QUOTE_START = re.compile(r"^(Op .+ schreef.*|On .+ wrote.*|-{2,} ?Original Message ?-{2,})$")
 
 
-def parse_email(raw: bytes) -> Message:
+def parse_email(raw: bytes, channel: str = CHANNEL) -> Message:
     parsed = BytesParser(policy=policy.default).parsebytes(raw)
     message_id = str(parsed["Message-ID"] or "").strip() or hashlib.sha256(raw).hexdigest()
     references = str(parsed["References"] or "").split() + str(parsed["In-Reply-To"] or "").split()
     headers = {key.lower(): str(value) for key, value in parsed.items()}
     return Message(
-        channel=CHANNEL,
+        channel=channel,
         external_id=message_id,
         thread_id=references[0] if references else message_id,
         sender=str(parsed["From"] or ""),
@@ -76,8 +76,6 @@ def build_reply(msg: Message, body: str, sender: str) -> EmailMessage:
 
 
 class IMAPConnector:
-    name = CHANNEL
-
     def __init__(
         self,
         host: str,
@@ -85,6 +83,7 @@ class IMAPConnector:
         password: str,
         smtp_host: str,
         sender_address: str,
+        name: str = CHANNEL,
         port: int = 993,
         smtp_port: int = 465,
         folder: str = "INBOX",
@@ -97,6 +96,7 @@ class IMAPConnector:
         self._smtp_port = smtp_port
         self._sender = sender_address
         self._folder = folder
+        self.name = name
 
     def fetch_new(self) -> list[Message]:
         messages = []
@@ -107,7 +107,7 @@ class IMAPConnector:
             _, data = imap.search(None, "UNSEEN")
             for number in data[0].split():
                 _, parts = imap.fetch(number, "(BODY.PEEK[])")
-                messages.append(parse_email(parts[0][1]))
+                messages.append(parse_email(parts[0][1], channel=self.name))
         return messages
 
     def send(self, msg: Message, body: str) -> None:

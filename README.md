@@ -65,6 +65,20 @@ Open `http://127.0.0.1:8000`. Links staan de categorieën met aantallen, in het 
 
 De pagina gebruikt geen externe bestanden; alles staat in `src/werker/static/index.html`.
 
+## Kanalen
+
+| Kanaal | Hoe | Waar |
+|---|---|---|
+| Gmail | Gmail API (OAuth, `werker gmail-login`) | Overal |
+| Eigen domein / zakelijke mail | IMAP, meerdere mailboxen via `WERKER_MAILBOXES` | Overal |
+| WhatsApp (zakelijk nummer) | Officiële Cloud API, via webhook | Server met HTTPS |
+| iMessage | Lokale berichtendatabase van de Mac | Alleen macOS-programma |
+
+Elke mailbox krijgt een eigen kanaal (`mail:<naam>`), zodat een antwoord altijd via dezelfde mailbox gaat.
+Outlook.com wordt nog niet ondersteund: Microsoft blokkeert het gewone wachtwoord voor IMAP.
+
+**Let op:** WhatsApp heeft een publieke webhook nodig, dus die werkt alleen op een server. Het bureaubladprogramma kan geen WhatsApp-berichten ontvangen.
+
 ## Bureaubladprogramma
 
 Werker draait ook als eigen venster op je computer, zonder browser en zonder server die je zelf moet starten.
@@ -75,18 +89,13 @@ mkdir -p ~/.werker && echo "ANTHROPIC_API_KEY=..." > ~/.werker/werker.env   # pl
 werker-desktop
 ```
 
-Gegevens staan in `~/.werker/` (database en `werker.env`). Het venster luistert alleen op `127.0.0.1`.
+Gegevens staan in `~/.werker/` (database, `werker.env` en `werker.log`). Het venster luistert alleen op `127.0.0.1`. Nieuwe berichten worden elke 5 minuten opgehaald (`WERKER_SYNC_MINUTES`).
 
-Losse, dubbelklikbare versie bouwen (op het systeem waarvoor je bouwt; PyInstaller maakt geen kruisbouw):
+Installeerbare programma's (Windows en macOS) bouwt GitHub Actions: `.github/workflows/desktop-build.yml`. Start die handmatig of met een tag `v*`; de zips staan dan als artifact klaar. Lokaal bouwen kan met `python packaging/build.py`.
 
-```bash
-pip install -e ".[desktop,gmail]" pyinstaller
-pyinstaller --noconfirm --name Werker \
-  --add-data "$PWD/src/werker/static:werker/static" \
-  --collect-submodules werker packaging/werker_desktop.py
-```
+De programma's zijn niet ondertekend. Windows toont daarom "Windows heeft uw pc beschermd": kies *Meer informatie* en *Toch uitvoeren*. macOS vraagt om rechtsklik en *Open*. Voor ondertekening is een Apple Developer-account en een Windows-certificaat nodig.
 
-Het resultaat staat in `dist/Werker/`. Op Linux heeft pywebview GTK of Qt nodig.
+Op Linux heeft pywebview GTK of Qt nodig.
 
 ## Online gebruiken
 

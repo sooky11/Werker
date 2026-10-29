@@ -4,7 +4,7 @@ import base64
 from pathlib import Path
 from typing import Any
 
-from werker.connectors.mail import CHANNEL, build_reply, parse_email
+from werker.connectors.mail import build_reply, parse_email
 from werker.models import Message
 
 SCOPES = [
@@ -40,7 +40,7 @@ def _decode_raw(data: str) -> bytes:
 
 
 class GmailConnector:
-    name = CHANNEL
+    name = "mail:gmail"
 
     def __init__(self, service: Any, sender_address: str, max_results: int = 25):
         self._service = service
@@ -53,7 +53,7 @@ class GmailConnector:
         messages = []
         for ref in listing.get("messages", []):
             raw = users.get(userId="me", id=ref["id"], format="raw").execute()
-            messages.append(parse_email(_decode_raw(raw["raw"])))
+            messages.append(parse_email(_decode_raw(raw["raw"]), channel=self.name))
         return messages
 
     def send(self, msg: Message, body: str) -> None:

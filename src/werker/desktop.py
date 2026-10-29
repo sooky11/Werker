@@ -80,12 +80,18 @@ class LocalServer:
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    prepare_environment()
+    home = prepare_environment()
+    # Windows en macOS-builds hebben geen console; het logboek staat daarom in een bestand.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[logging.FileHandler(home / "werker.log", encoding="utf-8")],
+    )
 
     # Importeer hier, zodat de instellingen al klaarstaan.
     from werker.cli import build_connectors, build_pipeline
     from werker.config import Settings
+    from werker.scheduler import start_periodic
     from werker.store import Store
     from werker.web import create_app
 
@@ -109,6 +115,9 @@ def main() -> int:
         verify_token=os.environ.get("WHATSAPP_VERIFY_TOKEN", ""),
     )
 
+    sync_minutes = float(os.environ.get("WERKER_SYNC_MINUTES", "5") or 0)
+    if sync_minutes > 0:
+        start_periodic(pipeline.sync, sync_minutes * 60, "sync")
     server = LocalServer(app, free_port())
     server.start()
     try:

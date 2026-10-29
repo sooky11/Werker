@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import json
 import logging
 import os
 import sys
@@ -10,6 +11,7 @@ from typing import Callable, Mapping
 
 from werker.classify import Classifier
 from werker.config import Settings
+from werker.connectors import imessage
 from werker.connectors.base import Connector
 from werker.connectors.mail import IMAPConnector, parse_email
 from werker.models import Message
@@ -17,32 +19,59 @@ from werker.pipeline import Pipeline, SendError
 from werker.policy import PolicyConfig
 from werker.prices import PriceBook, fetch_sheet_csv, format_amount, load_csv, load_yaml
 from werker.reply import Replier
+from werker.scheduler import start_periodic
 from werker.store import Store
 
 
 LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
+def mailbox_connectors(env: Mapping[str, str]) -> list[IMAPConnector]:
+    """Lees WERKER_MAILBOXES: een JSON-lijst met mailboxen. Wachtwoorden staan in eigen variabelen."""
+    entries = json.loads(env.get("WERKER_MAILBOXES", "[]") or "[]")
+    connectors = []
+    for entry in entries:
+        connectors.append(
+            IMAPConnector(
+                host=entry["host"],
+                user=entry["user"],
+                password=env[entry["password_env"]],
+                smtp_host=entry["smtp_host"],
+                sender_address=entry["sender"],
+                name=f"mail:{entry['name']}",
+                port=int(entry.get("port", 993)),
+                smtp_port=int(entry.get("smtp_port", 465)),
+                folder=entry.get("folder", "INBOX"),
+            )
+        )
+    return connectors
+
+
 def build_connectors(env: Mapping[str, str]) -> dict[str, Connector]:
     connectors: dict[str, Connector] = {}
-    if env.get("WERKER_IMAP_HOST"):
-        connectors["mail"] = IMAPConnector(
+    for connector in mailbox_connectors(env):
+        connectors[connector.name] = connector
+    if env.get("WERKER_IMAP_HOST") and "mail:imap" not in connectors:
+        connectors["mail:imap"] = IMAPConnector(
             host=env["WERKER_IMAP_HOST"],
             user=env["WERKER_IMAP_USER"],
             password=env["WERKER_IMAP_PASSWORD"],
             smtp_host=env["WERKER_SMTP_HOST"],
             sender_address=env["WERKER_SENDER_ADDRESS"],
+            name="mail:imap",
         )
-    elif env.get("WERKER_GMAIL_TOKEN"):
+    if env.get("WERKER_GMAIL_TOKEN"):
         from werker.connectors.gmail import GmailConnector, build_service
 
-        connectors["mail"] = GmailConnector(
+        connectors["mail:gmail"] = GmailConnector(
             build_service(env["WERKER_GMAIL_TOKEN"]), sender_address=env["WERKER_SENDER_ADDRESS"]
         )
     if env.get("WHATSAPP_TOKEN"):
         from werker.connectors.whatsapp import WhatsAppConnector
 
         connectors["whatsapp"] = WhatsAppConnector(env["WHATSAPP_PHONE_NUMBER_ID"], env["WHATSAPP_TOKEN"])
+    if env.get("WERKER_IMESSAGE", "true") == "true" and imessage.available():
+        connectors["imessage"] = imessage.IMessageConnector()
     return connectors
 
 
@@ -172,6 +201,9 @@ def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
         verify_token=env.get("WHATSAPP_VERIFY_TOKEN", ""),
         ui_password=ui_password,
     )
+    sync_minutes = float(env.get("WERKER_SYNC_MINUTES", "0") or 0)
+    if sync_minutes > 0:
+        start_periodic(pipeline.sync, sync_minutes * 60, "sync")
     print(f"Werker draait op http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0

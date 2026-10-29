@@ -1,0 +1,42 @@
+name: Desktop build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Installeer afhankelijkheden
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[desktop,gmail]" pyinstaller
+
+      - name: Bouw het programma
+        run: python packaging/build.py
+
+      - name: Maak een archief (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/Werker -DestinationPath dist/Werker-windows.zip
+
+      - name: Maak een archief (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/Werker.app dist/Werker-macos.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: werker-${{ runner.os }}
+          path: dist/*.zip

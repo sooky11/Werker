@@ -298,7 +298,12 @@
     overig: "Overig", nieuwsbrief: "Nieuwsbrief", spam: "Spam",
   };
   const URGENCY_LABELS = { hoog: "Urgent", normaal: "Normaal", laag: "Laag" };
-  const CHANNEL_LABELS = { mail: "Mail", whatsapp: "WhatsApp" };
+  const CHANNEL_NAMES = { whatsapp: "WhatsApp", imessage: "iMessage", "mail:gmail": "Gmail", "mail:imap": "Mail" };
+  function channelLabel(channel) {
+    if (CHANNEL_NAMES[channel]) return CHANNEL_NAMES[channel];
+    if (channel.startsWith("mail:")) return channel.slice(5);
+    return channel;
+  }
 
   const state = { tab: "pending", query: "", messages: [], selected: null, stats: null, loadId: 0 };
 
@@ -498,7 +503,7 @@
           h("div", { class: "meta" },
             h("span", { text: m.sender.includes("<") ? m.sender.replace(/.*</, "<") : "" }),
             h("span", { text: formatFull(m.received_at) }),
-            h("span", { text: CHANNEL_LABELS[m.channel] || m.channel }),
+            h("span", { text: channelLabel(m.channel) }),
           ),
         ),
       ),

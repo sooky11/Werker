@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import Any, Mapping
 
 from werker.connectors.base import Connector
@@ -41,7 +42,11 @@ class Pipeline:
     def process(self, msg: Message) -> Decision | None:
         if self._store.find_message_id(msg.channel, msg.external_id) is not None:
             return None
-        message_id = self._store.add_message(msg)
+        try:
+            message_id = self._store.add_message(msg)
+        except sqlite3.IntegrityError:
+            # Een andere thread heeft dit bericht net toegevoegd.
+            return None
 
         rule = apply_rules(msg, self._rules)
         if rule.skip:
