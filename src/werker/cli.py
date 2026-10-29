@@ -19,7 +19,6 @@ from werker.pipeline import Pipeline, SendError
 from werker.policy import PolicyConfig
 from werker.prices import PriceBook, fetch_sheet_csv, format_amount, load_csv, load_yaml
 from werker.reply import Replier
-from werker.scheduler import start_periodic
 from werker.store import Store
 
 
@@ -183,8 +182,11 @@ def cmd_reject(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
+    import threading
+
     import uvicorn
 
+    from werker.runtime import Runtime, run_background
     from werker.web import create_app
 
     env = os.environ
@@ -193,17 +195,10 @@ def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
         print("Weiger te starten: zet WERKER_UI_PASSWORD voordat je op een netwerk-interface luistert.", file=sys.stderr)
         return 1
     store = Store(settings.db_path)
-    pipeline = build_pipeline(settings, store, build_connectors(env))
-    app = create_app(
-        store,
-        pipeline,
-        app_secret=env.get("WHATSAPP_APP_SECRET", ""),
-        verify_token=env.get("WHATSAPP_VERIFY_TOKEN", ""),
-        ui_password=ui_password,
-    )
-    sync_minutes = float(env.get("WERKER_SYNC_MINUTES", "0") or 0)
-    if sync_minutes > 0:
-        start_periodic(pipeline.sync, sync_minutes * 60, "sync")
+    runtime = Runtime(store, Path(settings.db_path).resolve().parent, env)
+    runtime.reconfigure()
+    app = create_app(runtime, ui_password=ui_password)
+    run_background(runtime, threading.Event())
     print(f"Werker draait op http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0

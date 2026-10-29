@@ -8,7 +8,23 @@ from typing import Any
 
 from werker.models import Classification, Draft, Message
 
+WAITING = "wacht op goedkeuring"
+SCHEDULED = "ingepland"
+
 SCHEMA = """
+create table if not exists clients (
+    id integer primary key autoincrement,
+    name text not null,
+    notes text not null default '',
+    created_at text not null
+);
+create table if not exists client_identifiers (
+    id integer primary key autoincrement,
+    client_id integer not null references clients(id),
+    kind text not null,
+    value text not null,
+    unique (kind, value)
+);
 create table if not exists messages (
     id integer primary key autoincrement,
     channel text not null,
@@ -24,6 +40,7 @@ create table if not exists messages (
     confidence real,
     summary text,
     status text not null default 'nieuw',
+    client_id integer references clients(id),
     unique (channel, external_id)
 );
 create table if not exists drafts (
@@ -33,7 +50,10 @@ create table if not exists drafts (
     errors text not null default '',
     reason text not null default '',
     status text not null default 'wacht op goedkeuring',
-    created_at text not null
+    created_at text not null,
+    scheduled_for text,
+    revises integer,
+    change_summary text not null default ''
 );
 create table if not exists audit (
     id integer primary key autoincrement,
@@ -42,7 +62,21 @@ create table if not exists audit (
     event text not null,
     detail text not null default ''
 );
+create table if not exists app_settings (
+    key text primary key,
+    value text not null
+);
 """
+
+# Kolommen die na een eerste versie zijn toegevoegd; oudere databases krijgen ze alsnog.
+_ADDED_COLUMNS = {
+    "messages": {"client_id": "integer references clients(id)"},
+    "drafts": {
+        "scheduled_for": "text",
+        "revises": "integer",
+        "change_summary": "text not null default ''",
+    },
+}
 
 
 def _locked(method):
@@ -60,11 +94,10 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _as_utc(value: datetime) -> datetime:
-    """Naïeve datetimes worden als UTC behandeld."""
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+def _as_utc(moment: datetime) -> datetime:
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc)
 
 
 class Store:
@@ -73,9 +106,20 @@ class Store:
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
+        self._migrate()
 
     def close(self) -> None:
         self._db.close()
+
+    def _migrate(self) -> None:
+        for table, columns in _ADDED_COLUMNS.items():
+            existing = {row["name"] for row in self._db.execute(f"pragma table_info({table})")}
+            for column, definition in columns.items():
+                if column not in existing:
+                    self._db.execute(f"alter table {table} add column {column} {definition}")
+        self._db.commit()
+
+    # ---------- berichten ----------
 
     @_locked
     def find_message_id(self, channel: str, external_id: str) -> int | None:
@@ -86,12 +130,21 @@ class Store:
         return row["id"] if row else None
 
     @_locked
-    def add_message(self, msg: Message) -> int:
+    def reset_failed_message(self, channel: str, external_id: str) -> None:
+        """Een bericht dat door een fout niet is verwerkt, mag opnieuw verwerkt worden."""
+        with self._db:
+            self._db.execute(
+                "delete from messages where channel = ? and external_id = ? and status = 'fout'",
+                (channel, external_id),
+            )
+
+    @_locked
+    def add_message(self, msg: Message, client_id: int | None = None) -> int:
         with self._db:
             cursor = self._db.execute(
                 """insert into messages
-                   (channel, external_id, thread_id, sender, subject, body, received_at)
-                   values (?, ?, ?, ?, ?, ?, ?)""",
+                   (channel, external_id, thread_id, sender, subject, body, received_at, client_id)
+                   values (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     msg.channel,
                     msg.external_id,
@@ -99,7 +152,8 @@ class Store:
                     msg.sender,
                     msg.subject,
                     msg.body,
-                    msg.received_at.isoformat(),
+                    _as_utc(msg.received_at).isoformat(),
+                    client_id,
                 ),
             )
         return cursor.lastrowid
@@ -110,6 +164,10 @@ class Store:
         if row is None:
             raise LookupError(f"bericht {message_id} bestaat niet")
         return _row_to_message(row)
+
+    @_locked
+    def get_message_row(self, message_id: int) -> sqlite3.Row | None:
+        return self._db.execute("select * from messages where id = ?", (message_id,)).fetchone()
 
     @_locked
     def set_classification(self, message_id: int, cls: Classification) -> None:
@@ -126,54 +184,13 @@ class Store:
             self._db.execute("update messages set status = ? where id = ?", (status, message_id))
 
     @_locked
-    def add_draft(self, message_id: int, draft: Draft, errors: list[str]) -> int:
-        with self._db:
-            cursor = self._db.execute(
-                """insert into drafts (message_id, body, errors, reason, created_at)
-                   values (?, ?, ?, ?, ?)""",
-                (message_id, draft.body, "\n".join(errors), draft.reason, _now()),
-            )
-        return cursor.lastrowid
-
-    @_locked
-    def get_draft(self, draft_id: int) -> sqlite3.Row | None:
-        return self._db.execute("select * from drafts where id = ?", (draft_id,)).fetchone()
-
-    @_locked
-    def set_draft_status(self, draft_id: int, status: str, body: str | None = None) -> None:
-        with self._db:
-            if body is None:
-                self._db.execute("update drafts set status = ? where id = ?", (status, draft_id))
-            else:
-                self._db.execute(
-                    "update drafts set status = ?, body = ? where id = ?", (status, body, draft_id)
-                )
-
-    @_locked
-    def pending_drafts(self) -> list[sqlite3.Row]:
-        return self._db.execute(
-            """select d.id, d.body, d.errors, d.reason, m.channel, m.sender, m.subject, m.summary
-               from drafts d join messages m on m.id = d.message_id
-               where d.status = 'wacht op goedkeuring' order by d.id"""
-        ).fetchall()
-
-    @_locked
-    def messages_since(self, since: datetime) -> list[sqlite3.Row]:
-        """Berichten ontvangen op of na `since`, oudste eerst.
-
-        received_at kan verschillende tijdzones bevatten, daarom vergelijken we in Python in UTC.
-        """
-        cutoff = _as_utc(since)
-        rows = self._db.execute("select * from messages").fetchall()
-        selected = [row for row in rows if _as_utc(datetime.fromisoformat(row["received_at"])) >= cutoff]
-        return sorted(selected, key=lambda row: _as_utc(datetime.fromisoformat(row["received_at"])))
-
-    @_locked
     def list_messages(
         self,
         intent: str | None = None,
         pending: bool = False,
+        scheduled: bool = False,
         query: str | None = None,
+        client_id: int | None = None,
         limit: int = 200,
     ) -> list[sqlite3.Row]:
         clauses: list[str] = []
@@ -182,28 +199,32 @@ class Store:
             clauses.append("m.intent = ?")
             params.append(intent)
         if pending:
-            clauses.append("exists (select 1 from drafts d where d.message_id = m.id and d.status = 'wacht op goedkeuring')")
+            clauses.append("exists (select 1 from drafts d where d.message_id = m.id and d.status = ?)")
+            params.append(WAITING)
+        if scheduled:
+            clauses.append("exists (select 1 from drafts d where d.message_id = m.id and d.status = ?)")
+            params.append(SCHEDULED)
         if query:
             clauses.append("(m.sender like ? or m.subject like ? or m.body like ?)")
             params.extend([f"%{query}%"] * 3)
+        if client_id is not None:
+            clauses.append("m.client_id = ?")
+            params.append(client_id)
         where = f"where {' and '.join(clauses)}" if clauses else ""
         params.append(limit)
         return self._db.execute(
             f"""select m.*, (select d.id from drafts d
-                   where d.message_id = m.id and d.status = 'wacht op goedkeuring'
+                   where d.message_id = m.id and d.status in (?, ?)
                    order by d.id desc limit 1) as draft_id
                from messages m {where} order by m.received_at desc limit ?""",
-            params,
+            [WAITING, SCHEDULED, *params],
         ).fetchall()
 
     @_locked
-    def get_message_row(self, message_id: int) -> sqlite3.Row | None:
-        return self._db.execute("select * from messages where id = ?", (message_id,)).fetchone()
-
-    @_locked
-    def drafts_for_message(self, message_id: int) -> list[sqlite3.Row]:
+    def messages_since(self, since: datetime) -> list[sqlite3.Row]:
         return self._db.execute(
-            "select * from drafts where message_id = ? order by id", (message_id,)
+            "select * from messages where received_at >= ? order by received_at",
+            (_as_utc(since).isoformat(),),
         ).fetchall()
 
     @_locked
@@ -213,12 +234,190 @@ class Store:
         ).fetchall()
         return {row["intent"]: row["n"] for row in rows}
 
+    # ---------- concepten ----------
+
+    @_locked
+    def add_draft(
+        self,
+        message_id: int,
+        draft: Draft,
+        errors: list[str],
+        revises: int | None = None,
+        change_summary: str = "",
+    ) -> int:
+        with self._db:
+            cursor = self._db.execute(
+                """insert into drafts (message_id, body, errors, reason, created_at, revises, change_summary)
+                   values (?, ?, ?, ?, ?, ?, ?)""",
+                (message_id, draft.body, "\n".join(errors), draft.reason, _now(), revises, change_summary),
+            )
+        return cursor.lastrowid
+
+    @_locked
+    def get_draft(self, draft_id: int) -> sqlite3.Row | None:
+        return self._db.execute("select * from drafts where id = ?", (draft_id,)).fetchone()
+
+    @_locked
+    def drafts_for_message(self, message_id: int) -> list[sqlite3.Row]:
+        return self._db.execute("select * from drafts where message_id = ? order by id", (message_id,)).fetchall()
+
+    @_locked
+    def set_draft_status(self, draft_id: int, status: str, body: str | None = None) -> None:
+        with self._db:
+            if body is None:
+                self._db.execute("update drafts set status = ? where id = ?", (status, draft_id))
+            else:
+                self._db.execute("update drafts set status = ?, body = ? where id = ?", (status, body, draft_id))
+
+    @_locked
+    def schedule_draft(self, draft_id: int, body: str, send_at: datetime) -> None:
+        with self._db:
+            self._db.execute(
+                "update drafts set status = ?, body = ?, scheduled_for = ? where id = ?",
+                (SCHEDULED, body, _as_utc(send_at).isoformat(), draft_id),
+            )
+
+    @_locked
+    def unschedule_draft(self, draft_id: int) -> None:
+        with self._db:
+            self._db.execute("update drafts set status = ?, scheduled_for = null where id = ?", (WAITING, draft_id))
+
+    @_locked
+    def due_drafts(self, now: datetime) -> list[sqlite3.Row]:
+        return self._db.execute(
+            "select * from drafts where status = ? and scheduled_for <= ? order by scheduled_for",
+            (SCHEDULED, _as_utc(now).isoformat()),
+        ).fetchall()
+
+    @_locked
+    def open_draft_for_thread(self, channel: str, thread_id: str) -> sqlite3.Row | None:
+        """Het laatste concept dat nog wacht of is ingepland, in dezelfde gespreksdraad."""
+        return self._db.execute(
+            """select d.* from drafts d join messages m on m.id = d.message_id
+               where m.channel = ? and m.thread_id = ? and d.status in (?, ?)
+               order by d.id desc limit 1""",
+            (channel, thread_id, WAITING, SCHEDULED),
+        ).fetchone()
+
+    @_locked
+    def pending_drafts(self) -> list[sqlite3.Row]:
+        return self._db.execute(
+            """select d.id, d.body, d.errors, d.reason, m.channel, m.sender, m.subject, m.summary
+               from drafts d join messages m on m.id = d.message_id
+               where d.status = ? order by d.id""",
+            (WAITING,),
+        ).fetchall()
+
     @_locked
     def pending_count(self) -> int:
-        row = self._db.execute(
-            "select count(*) as n from drafts where status = 'wacht op goedkeuring'"
-        ).fetchone()
+        row = self._db.execute("select count(*) as n from drafts where status = ?", (WAITING,)).fetchone()
         return row["n"]
+
+    @_locked
+    def scheduled_count(self) -> int:
+        row = self._db.execute("select count(*) as n from drafts where status = ?", (SCHEDULED,)).fetchone()
+        return row["n"]
+
+    # ---------- klanten ----------
+
+    @_locked
+    def find_client_by_identifier(self, kind: str, value: str) -> int | None:
+        row = self._db.execute(
+            "select client_id from client_identifiers where kind = ? and value = ?", (kind, value)
+        ).fetchone()
+        return row["client_id"] if row else None
+
+    @_locked
+    def create_client(self, name: str, identifiers: list[tuple[str, str]]) -> int:
+        with self._db:
+            cursor = self._db.execute("insert into clients (name, created_at) values (?, ?)", (name, _now()))
+            client_id = cursor.lastrowid
+            for kind, value in identifiers:
+                self._db.execute(
+                    "insert or ignore into client_identifiers (client_id, kind, value) values (?, ?, ?)",
+                    (client_id, kind, value),
+                )
+        return client_id
+
+    @_locked
+    def add_identifier(self, client_id: int, kind: str, value: str) -> None:
+        with self._db:
+            self._db.execute(
+                "insert into client_identifiers (client_id, kind, value) values (?, ?, ?)",
+                (client_id, kind, value),
+            )
+
+    @_locked
+    def set_message_client(self, message_id: int, client_id: int) -> None:
+        with self._db:
+            self._db.execute("update messages set client_id = ? where id = ?", (client_id, message_id))
+
+    @_locked
+    def get_client(self, client_id: int) -> sqlite3.Row | None:
+        return self._db.execute("select * from clients where id = ?", (client_id,)).fetchone()
+
+    @_locked
+    def client_identifiers(self, client_id: int) -> list[sqlite3.Row]:
+        return self._db.execute(
+            "select kind, value from client_identifiers where client_id = ? order by kind, value", (client_id,)
+        ).fetchall()
+
+    @_locked
+    def list_clients(self, query: str | None = None) -> list[sqlite3.Row]:
+        where = ""
+        params: list[Any] = []
+        if query:
+            where = """where c.name like ? or exists (select 1 from client_identifiers i
+                       where i.client_id = c.id and i.value like ?)"""
+            params = [f"%{query}%", f"%{query}%"]
+        return self._db.execute(
+            f"""select c.id, c.name, c.notes,
+                   count(m.id) as message_count,
+                   max(m.received_at) as last_received,
+                   group_concat(distinct m.channel) as channels
+                from clients c left join messages m on m.client_id = c.id
+                {where}
+                group by c.id order by last_received desc, c.name""",
+            params,
+        ).fetchall()
+
+    @_locked
+    def update_client(self, client_id: int, name: str | None = None, notes: str | None = None) -> None:
+        with self._db:
+            if name is not None:
+                self._db.execute("update clients set name = ? where id = ?", (name, client_id))
+            if notes is not None:
+                self._db.execute("update clients set notes = ? where id = ?", (notes, client_id))
+
+    @_locked
+    def merge_clients(self, source_id: int, target_id: int) -> None:
+        """Voeg source samen met target: berichten en identificaties gaan naar target."""
+        with self._db:
+            self._db.execute("update messages set client_id = ? where client_id = ?", (target_id, source_id))
+            self._db.execute("update client_identifiers set client_id = ? where client_id = ?", (target_id, source_id))
+            self._db.execute("delete from clients where id = ?", (source_id,))
+
+    # ---------- instellingen ----------
+
+    @_locked
+    def get_settings(self) -> dict[str, str]:
+        rows = self._db.execute("select key, value from app_settings").fetchall()
+        return {row["key"]: row["value"] for row in rows}
+
+    @_locked
+    def set_settings(self, values: dict[str, str | None]) -> None:
+        with self._db:
+            for key, value in values.items():
+                if value is None:
+                    self._db.execute("delete from app_settings where key = ?", (key,))
+                else:
+                    self._db.execute(
+                        "insert into app_settings (key, value) values (?, ?) "
+                        "on conflict(key) do update set value = excluded.value",
+                        (key, value),
+                    )
+
+    # ---------- auditlog ----------
 
     @_locked
     def audit(self, message_id: int | None, event: str, detail: str = "") -> None:
@@ -228,8 +427,15 @@ class Store:
                 (_now(), message_id, event, detail),
             )
 
+    @_locked
+    def audit_log(self, message_id: int, limit: int = 50) -> list[sqlite3.Row]:
+        return self._db.execute(
+            "select at, event, detail from audit where message_id = ? order by id desc limit ?",
+            (message_id, limit),
+        ).fetchall()
 
-def _row_to_message(row: Any) -> Message:
+
+def _row_to_message(row: sqlite3.Row) -> Message:
     return Message(
         channel=row["channel"],
         external_id=row["external_id"],

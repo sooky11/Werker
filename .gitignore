@@ -8,3 +8,4 @@ token.json
 dist/
 build/
 *.spec
+secrets.json

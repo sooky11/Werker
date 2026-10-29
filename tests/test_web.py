@@ -13,6 +13,7 @@ from werker.policy import PolicyConfig
 from werker.prices import PriceBook, load_yaml
 from werker.rules import RuleConfig
 from werker.store import Store
+from werker.runtime import Runtime
 from werker.web import create_app
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "prices.example.yaml"
@@ -60,22 +61,24 @@ def _msg(external_id="<1@x>") -> Message:
     )
 
 
-def _build(tmp_path, reply_body="Dat is € 25,00.", ui_password="", connector=None):
+def _build(tmp_path, reply_body="Dat is € 25,00.", ui_password="", connector=None, env=None):
     store = Store(str(tmp_path / "w.db"))
-    prices = PriceBook(lambda: load_yaml(EXAMPLE))
-    prices.refresh()
     connector = connector or FakeConnector()
-    pipeline = Pipeline(
+    if env is None:
+        env = {"WHATSAPP_APP_SECRET": SECRET, "WHATSAPP_VERIFY_TOKEN": "verify"}
+    runtime = Runtime(store, tmp_path, env)
+    runtime.pipeline = Pipeline(
         store,
         FakeClassifier(),
         FakeReplier(reply_body),
-        prices,
+        PriceBook(lambda: load_yaml(EXAMPLE)),
         PolicyConfig(),
         RuleConfig(),
         {"mail": connector},
     )
-    app = create_app(store, pipeline, app_secret=SECRET, verify_token="verify", ui_password=ui_password)
-    return TestClient(app), pipeline, connector
+    runtime.pipeline.prices.refresh()
+    app = create_app(runtime, ui_password=ui_password)
+    return TestClient(app), runtime.pipeline, connector
 
 
 def _seed(client_pipeline_connector) -> None:
@@ -114,7 +117,7 @@ def test_unknown_message_is_404(seeded):
 
 def test_stats_count_intents_and_pending(seeded):
     client, _, _ = seeded
-    assert client.get("/api/stats").json() == {"intents": {"prijsvraag": 1}, "pending": 1}
+    assert client.get("/api/stats").json() == {"intents": {"prijsvraag": 1}, "pending": 1, "scheduled": 0}
 
 
 def test_search_matches_body(seeded):
@@ -204,10 +207,7 @@ def test_webhook_accepts_valid_signature(tmp_path):
 
 
 def test_webhook_refuses_everything_without_app_secret(tmp_path):
-    store = Store(str(tmp_path / "w.db"))
-    prices = PriceBook(lambda: load_yaml(EXAMPLE))
-    pipeline = Pipeline(store, FakeClassifier(), FakeReplier("x"), prices, PolicyConfig(), RuleConfig(), {})
-    client = TestClient(create_app(store, pipeline, app_secret="", verify_token=""))
+    client, _, _ = _build(tmp_path, env={})
     payload = json.dumps({"entry": []}).encode()
     signature = "sha256=" + hmac.new(b"", payload, hashlib.sha256).hexdigest()
     response = client.post("/webhook/whatsapp", content=payload, headers={"x-hub-signature-256": signature})

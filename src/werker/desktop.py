@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import os
 import socket
-import sys
 import threading
 import time
 from pathlib import Path
@@ -89,41 +88,32 @@ def main() -> int:
     )
 
     # Importeer hier, zodat de instellingen al klaarstaan.
-    from werker.cli import build_connectors, build_pipeline
     from werker.config import Settings
-    from werker.scheduler import start_periodic
+    from werker.runtime import Runtime, run_background
     from werker.store import Store
     from werker.web import create_app
 
     try:
         import webview
     except ImportError:
-        print("pywebview ontbreekt: installeer met pip install -e \".[desktop]\"", file=sys.stderr)
+        log.error("pywebview ontbreekt: installeer met pip install -e \".[desktop]\"")
         return 1
 
     settings = Settings.from_env()
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print(f"Zet ANTHROPIC_API_KEY in {data_dir() / 'werker.env'} en start opnieuw.", file=sys.stderr)
-        return 1
-
     store = Store(settings.db_path)
-    pipeline = build_pipeline(settings, store, build_connectors(os.environ))
-    app = create_app(
-        store,
-        pipeline,
-        app_secret=os.environ.get("WHATSAPP_APP_SECRET", ""),
-        verify_token=os.environ.get("WHATSAPP_VERIFY_TOKEN", ""),
-    )
+    runtime = Runtime(store, home, os.environ)
+    runtime.reconfigure()
+    app = create_app(runtime)
 
-    sync_minutes = float(os.environ.get("WERKER_SYNC_MINUTES", "5") or 0)
-    if sync_minutes > 0:
-        start_periodic(pipeline.sync, sync_minutes * 60, "sync")
+    stop = threading.Event()
+    run_background(runtime, stop)
     server = LocalServer(app, free_port())
     server.start()
     try:
         webview.create_window(WINDOW_TITLE, server.url, width=1280, height=840, min_size=(900, 600))
         webview.start()
     finally:
+        stop.set()
         server.stop()
         store.close()
     return 0
