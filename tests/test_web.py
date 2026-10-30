@@ -65,7 +65,8 @@ def _build(tmp_path, reply_body="Dat is € 25,00.", ui_password="", connector=N
     store = Store(str(tmp_path / "w.db"))
     connector = connector or FakeConnector()
     if env is None:
-        env = {"WHATSAPP_APP_SECRET": SECRET, "WHATSAPP_VERIFY_TOKEN": "verify"}
+        # Zonder bedenktijd: deze tests verwachten dat goedkeuren meteen verstuurt.
+        env = {"WHATSAPP_APP_SECRET": SECRET, "WHATSAPP_VERIFY_TOKEN": "verify", "WERKER_UNDO_SECONDS": "0"}
     runtime = Runtime(store, tmp_path, env)
     runtime.pipeline = Pipeline(
         store,

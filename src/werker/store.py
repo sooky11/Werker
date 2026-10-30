@@ -129,9 +129,10 @@ from werker.store_privacy import PrivacyStoreMixin  # noqa: E402
 # De mixins gebruiken _locked en _as_utc uit dit bestand, dus ze worden pas hier geïmporteerd.
 from werker.store_billing import BillingStoreMixin  # noqa: E402
 from werker.store_reports import ReportsStoreMixin  # noqa: E402
+from werker.store_rules import RulesStoreMixin  # noqa: E402
 
 
-class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin):
+class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreMixin):
     def __init__(self, path: str):
         self._lock = threading.RLock()
         self._db = sqlite3.connect(path, check_same_thread=False)
@@ -140,6 +141,7 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin):
         self._migrate()
         self._ensure_privacy_schema()
         self._ensure_billing_schema()
+        self._ensure_rules_schema()
 
     def close(self) -> None:
         self._db.close()

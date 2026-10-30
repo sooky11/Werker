@@ -59,6 +59,8 @@ SETTING_KEYS = (
     "WERKER_CALENDAR_TOKEN",
     "WERKER_OUTLOOK_CLIENT_ID",
     "WERKER_OUTLOOK_TOKEN_CACHE",
+    "WERKER_UNDO_SECONDS",
+    "WERKER_SIGNATURES",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -80,7 +82,11 @@ DEFAULTS = {
     "WERKER_CALENDAR_TOKEN": "",
     "WERKER_OUTLOOK_CLIENT_ID": "",
     "WERKER_OUTLOOK_TOKEN_CACHE": "",
+    "WERKER_UNDO_SECONDS": "30",
+    "WERKER_SIGNATURES": "{}",
 }
+MAX_UNDO_SECONDS = 300
+MAX_SIGNATURE_CHARS = 1000
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
 
@@ -104,6 +110,24 @@ class Unconfigured:
         raise RuntimeError(self._reason)
 
 
+def _valid_signatures(value: Any) -> bool:
+    data = json.loads(value) if isinstance(value, str) else value
+    return isinstance(data, dict) and all(
+        isinstance(k, str) and isinstance(v, str) and len(v) <= MAX_SIGNATURE_CHARS for k, v in data.items()
+    )
+
+
+def parse_signatures(raw: str | None) -> dict[str, str]:
+    """WERKER_SIGNATURES als dict; een kapotte waarde betekent: geen ondertekening."""
+    try:
+        data = json.loads(raw or "{}")
+    except ValueError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): v for k, v in data.items() if isinstance(v, str) and v.strip()}
+
+
 def _validate_values(values: Mapping[str, Any]) -> None:
     """Controleer getallen en de aan/uit-schakelaars voordat ze worden opgeslagen."""
     checks = {
@@ -114,6 +138,9 @@ def _validate_values(values: Mapping[str, Any]) -> None:
         "WERKER_IMESSAGE": lambda v: str(v) in ("true", "false"),
         "WERKER_THEME": lambda v: str(v) in ("editorieel", "donker", "zacht"),
         "WERKER_RETENTION_DAYS": lambda v: re.fullmatch(r"\d+", str(v).strip()) is not None,
+        "WERKER_UNDO_SECONDS": lambda v: re.fullmatch(r"\d+", str(v).strip()) is not None
+        and int(str(v).strip()) <= MAX_UNDO_SECONDS,
+        "WERKER_SIGNATURES": _valid_signatures,
     }
     for key, value in values.items():
         check = checks.get(key)
@@ -189,6 +216,14 @@ class Runtime:
         merged.update({k: v for k, v in self._read_secrets().items() if v})
         merged.update({k: v for k, v in self.store.get_settings().items()})
         return merged
+
+    def undo_seconds(self) -> int:
+        """Bedenktijd in seconden voordat een goedgekeurd bericht echt wordt verstuurd (0 = meteen)."""
+        raw = str(self.env().get("WERKER_UNDO_SECONDS", DEFAULTS["WERKER_UNDO_SECONDS"]) or "0").strip()
+        try:
+            return max(0, min(int(raw), MAX_UNDO_SECONDS))
+        except ValueError:
+            return int(DEFAULTS["WERKER_UNDO_SECONDS"])
 
     def sync_minutes(self) -> float:
         return float(self.env().get("WERKER_SYNC_MINUTES", DEFAULTS["WERKER_SYNC_MINUTES"]) or 0)
@@ -315,6 +350,7 @@ class Runtime:
             "payments": self.invoicing.match_message,
             "calendar": _calendar(env),
             "labeler": labeler,
+            "signatures": parse_signatures(env.get("WERKER_SIGNATURES")),
         }
 
     def reconfigure(self) -> None:
@@ -328,16 +364,25 @@ class Runtime:
         self.pipeline.prices.refresh()
 
 
-def run_background(runtime: Runtime, stop: threading.Event, tick_seconds: float = 30) -> threading.Thread:
-    """Verstuur geplande berichten en haal nieuwe berichten op, volgens de ingestelde interval."""
+def run_background(
+    runtime: Runtime, stop: threading.Event, tick_seconds: float = 5, invoice_seconds: float = 30
+) -> threading.Thread:
+    """Verstuur geplande berichten en haal nieuwe berichten op, volgens de ingestelde interval.
+
+    Elke tick (standaard 5 s) gaan berichten waarvan de bedenktijd voorbij is de deur uit;
+    facturen en het ophalen van berichten hebben hun eigen, langere interval.
+    """
 
     def loop() -> None:
         last_sync = 0.0
+        last_invoices = 0.0
         while not stop.wait(tick_seconds):
             try:
                 if runtime.pipeline is None:
                     continue
-                runtime.invoicing.dispatch()
+                if time.monotonic() - last_invoices >= invoice_seconds:
+                    runtime.invoicing.dispatch()
+                    last_invoices = time.monotonic()
                 minutes = runtime.sync_minutes()
                 if minutes > 0 and time.monotonic() - last_sync >= minutes * 60:
                     runtime.pipeline.sync()

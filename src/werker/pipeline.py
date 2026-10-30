@@ -49,8 +49,11 @@ class Pipeline:
         payments: Any = None,
         calendar: CalendarProvider | None = None,
         labeler: Any = None,
+        signatures: Mapping[str, str] | None = None,
     ):
         self._store = store
+        # Ondertekening per kanaal (kanaalnaam -> tekst); wordt bij verzenden onder het bericht gezet.
+        self.signatures: dict[str, str] = dict(signatures or {})
         # Agenda voor afspraken. Met NoCalendar worden er geen tijdstippen voorgesteld en geen afspraken gemaakt.
         self.calendar: CalendarProvider = calendar if calendar is not None else NoCalendar()
         # Functie(body, client_id) -> lijst met nummers van facturen die daardoor betaald zijn.
@@ -78,6 +81,7 @@ class Pipeline:
         payments: Any = None,
         calendar: CalendarProvider | None = None,
         labeler: Any = None,
+        signatures: Mapping[str, str] | None = None,
     ) -> None:
         """Pas instellingen toe zonder de app opnieuw te starten. Alleen de meegegeven onderdelen veranderen."""
         if classifier is not None:
@@ -98,6 +102,8 @@ class Pipeline:
             self.calendar = calendar
         if labeler is not None:
             self._labeler = labeler
+        if signatures is not None:
+            self.signatures = dict(signatures)
 
     # ---------- binnenkomende berichten ----------
 
@@ -125,7 +131,7 @@ class Pipeline:
             raise
 
     def _process_stored(self, message_id: int, msg: Message) -> Decision:
-        rule = apply_rules(msg, self._rules)
+        rule = apply_rules(msg, self._rules, self._store.sender_rule_intent)
         if rule.skip:
             self._store.set_status(message_id, "overgeslagen")
             self._store.audit(message_id, "overgeslagen", rule.reason)
@@ -262,9 +268,15 @@ class Pipeline:
         send_at: datetime | None = None,
         slot_start: datetime | None = None,
         by: str | None = None,
-    ) -> None:
+        undo_seconds: int = 0,
+    ) -> dict[str, Any]:
+        """Geeft {"status", "draft_id", "send_at", "undo_until"}; undo_until is None als er geen bedenktijd is.
+
+        Met undo_seconds > 0 wordt "nu verzenden" zoveel seconden later verstuurd. Tot dan kan het
+        met cancel_schedule ongedaan worden gemaakt.
+        """
         with self._lock:
-            self._approve(draft_id, body, force, send_at, slot_start, by)
+            return self._approve(draft_id, body, force, send_at, slot_start, by, undo_seconds)
 
     def _approve(
         self,
@@ -274,7 +286,8 @@ class Pipeline:
         send_at: datetime | None,
         slot_start: datetime | None,
         by: str | None,
-    ) -> None:
+        undo_seconds: int = 0,
+    ) -> dict[str, Any]:
         """Keur een concept goed. Met send_at wordt het op dat tijdstip verstuurd, anders meteen.
 
         Bij een afspraak met slot_start wordt daarna de afspraak in de agenda gezet.
@@ -294,14 +307,27 @@ class Pipeline:
         if start is not None and self._slot_taken(start):
             raise ValueError("dit tijdstip is inmiddels bezet; kies een ander tijdstip")
         suffix = f" door {by}" if by else ""
-        if send_at is not None and send_at > datetime.now(timezone.utc):
+        now = datetime.now(timezone.utc)
+        result: dict[str, Any] = {"draft_id": draft_id, "send_at": None, "undo_until": None}
+        if send_at is not None and send_at > now:
             self._store.schedule_draft(draft_id, text, send_at)
             self._store.audit(message_id, "ingepland", send_at.isoformat() + suffix)
+            result.update(status=SCHEDULED, send_at=send_at.isoformat())
+        elif undo_seconds > 0:
+            # Bedenktijd: het bericht gaat over een paar seconden; tot dan kan het ongedaan worden gemaakt.
+            until = now + timedelta(seconds=undo_seconds)
+            self._store.schedule_draft(draft_id, text, until)
+            self._store.audit(
+                message_id, "ingepland", f"verzending over {undo_seconds} s, ongedaan maken kan tot {until.isoformat()}{suffix}"
+            )
+            result.update(status=SCHEDULED, send_at=until.isoformat(), undo_until=until.isoformat())
         else:
             self._store.set_draft_status(draft_id, WAITING, body=text)
             self._send(message_id, msg, draft_id, text, how="door mens goedgekeurd" + suffix)
+            result.update(status="verzonden")
         if start is not None:
             self._book(message_id, msg, start)
+        return result
 
     def _appointment_start(self, message_id: int, slot_start: datetime | None) -> datetime | None:
         """Het begin van de afspraak die in de agenda komt, of None als er niets geboekt wordt."""
@@ -383,6 +409,7 @@ class Pipeline:
         try:
             if connector is None:
                 raise RuntimeError(f"geen connector voor kanaal {msg.channel!r}")
+            body = self._with_signature(msg.channel, body)
             connector.send(msg, body)
         except Exception as exc:
             log.exception("verzenden mislukt voor bericht %s", message_id)
@@ -392,3 +419,10 @@ class Pipeline:
         self._store.set_draft_status(draft_id, "verzonden", body=body)
         self._store.set_status(message_id, "beantwoord")
         self._store.audit(message_id, "verzonden", how)
+
+    def _with_signature(self, channel: str, body: str) -> str:
+        """Zet de ondertekening van dit kanaal onder het bericht, tenzij die er al staat."""
+        signature = (self.signatures.get(channel) or "").strip()
+        if not signature or body.rstrip().endswith(signature):
+            return body
+        return body.rstrip() + "\n\n" + signature

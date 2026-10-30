@@ -21,6 +21,7 @@ from werker.runtime import Runtime
 from werker.store import WAITING, Store
 from werker.web_privacy import privacy_router
 from werker.web_billing import billing_router
+from werker.web_rules import rules_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -261,13 +262,14 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
     ) -> dict[str, Any]:
         send_at = _utc(payload.send_at)
         try:
-            pipeline().approve(
+            result = pipeline().approve(
                 draft_id,
                 body=payload.body,
                 force=payload.force,
                 send_at=send_at,
                 slot_start=payload.slot_start,
                 by=user,
+                undo_seconds=runtime.undo_seconds(),
             )
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
@@ -275,8 +277,8 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
             raise HTTPException(status_code=409, detail=str(exc))
         except SendError as exc:
             raise HTTPException(status_code=502, detail=f"{exc}. Het concept blijft staan.")
-        scheduled = send_at is not None and send_at > datetime.now(timezone.utc)
-        return {"status": "ingepland" if scheduled else "verzonden"}
+        # status is "ingepland" of "verzonden"; undo_until is gezet tijdens de bedenktijd (ongedaan maken).
+        return result
 
     @app.post("/api/drafts/{draft_id}/cancel-schedule", dependencies=[ui_auth])
     def cancel_schedule(draft_id: int, user: str | None = ui_auth) -> dict[str, Any]:
@@ -472,4 +474,5 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
 
     app.include_router(privacy_router(runtime, ui_auth))
     app.include_router(billing_router(runtime, ui_auth))
+    app.include_router(rules_router(runtime, ui_auth))
     return app

@@ -59,7 +59,8 @@ def _msg() -> Message:
 def _build(tmp_path, users=None, legacy=""):
     store = Store(str(tmp_path / "w.db"))
     connector = FakeConnector()
-    runtime = Runtime(store, tmp_path, {})
+    # Zonder bedenktijd: deze tests verwachten dat goedkeuren meteen verstuurt.
+    runtime = Runtime(store, tmp_path, {"WERKER_UNDO_SECONDS": "0"})
     if users is not None:
         runtime.update(users=users)  # bouwt eerst een eigen pipeline; die vervangen we hieronder
     runtime.pipeline = Pipeline(
