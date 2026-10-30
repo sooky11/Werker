@@ -10,6 +10,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from werker import attachments
 from werker.store import Store
 
 
@@ -50,7 +51,9 @@ def erase_client(store: Store, client_id: int) -> dict[str, int]:
 
     Facturen blijven staan met koper 'verwijderd'. Het logboek krijgt een regel met aantallen.
     """
-    return store.privacy_erase_client(client_id, _client_hash(client_id))
+    counts = store.privacy_erase_client(client_id, _client_hash(client_id))
+    attachments.remove_orphans(store)  # bestanden en rijen van de verwijderde berichten
+    return counts
 
 
 def purge_expired(store: Store, now: datetime, days: int) -> int:
@@ -62,4 +65,6 @@ def purge_expired(store: Store, now: datetime, days: int) -> int:
     if days <= 0:
         return 0
     cutoff = _utc(now) - timedelta(days=days)
-    return store.privacy_purge_messages(cutoff.isoformat())
+    removed = store.privacy_purge_messages(cutoff.isoformat())
+    attachments.remove_orphans(store)
+    return removed

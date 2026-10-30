@@ -17,6 +17,17 @@ class Intent(StrEnum):
 
 
 @dataclass(frozen=True)
+class Attachment:
+    """Een bijlage bij een bericht. Te grote bijlagen hebben geen inhoud, alleen naam en grootte."""
+
+    filename: str
+    content_type: str
+    data: bytes = field(default=b"", repr=False)
+    size: int = 0
+    too_large: bool = False
+
+
+@dataclass(frozen=True)
 class Message:
     channel: str
     external_id: str
@@ -26,6 +37,7 @@ class Message:
     body: str
     received_at: datetime
     headers: dict[str, str] = field(default_factory=dict)
+    attachments: tuple[Attachment, ...] = ()
 
 
 @dataclass(frozen=True)

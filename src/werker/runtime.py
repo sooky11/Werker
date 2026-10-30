@@ -28,7 +28,7 @@ from werker.clients import migrate_stored_phones
 from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
-from werker import privacy
+from werker import attachments, privacy
 from werker.connectors.gmail import intent_labeler
 from werker.pipeline import Pipeline
 from werker.prices import PriceBook
@@ -154,6 +154,7 @@ class Runtime:
         if counts["botsing"]:
             log.warning("%s telefoonnummers horen bij twee klanten; voeg die klanten samen", counts["botsing"])
         self.home = home
+        attachments.enable(store, home)  # bijlagen van nieuwe berichten bewaren onder home/bijlagen
         self._base = dict(base_env)
         self.pipeline: Pipeline | None = None
         self.invoicing = Invoicing(store, home / "peppol-map")
