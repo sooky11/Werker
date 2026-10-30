@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import sys
 import threading
 import time
 from pathlib import Path
@@ -80,7 +81,24 @@ class LocalServer:
         self._thread.join(timeout=5)
 
 
-def main() -> int:
+def self_test(url: str) -> bool:
+    """Controleer dat de gebundelde app echt draait: de inbox-pagina en de instellingen moeten laden."""
+    import httpx
+
+    try:
+        page = httpx.get(url, timeout=10)
+        settings = httpx.get(url + "api/settings", timeout=10)
+    except httpx.HTTPError:
+        log.exception("zelftest: de lokale server antwoordt niet")
+        return False
+    ok = page.status_code == 200 and "<html" in page.text.lower() and settings.status_code == 200
+    log.info("zelftest: pagina %s, instellingen %s", page.status_code, settings.status_code)
+    return ok
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    testing = "--zelftest" in args  # voor de build: start alles behalve het venster en stop meteen
     home = prepare_environment()
     # Windows en macOS-builds hebben geen console; het logboek staat daarom in een bestand.
     logging.basicConfig(
@@ -112,6 +130,8 @@ def main() -> int:
     server = LocalServer(app, free_port())
     server.start()
     try:
+        if testing:
+            return 0 if self_test(server.url) else 1
         webview.create_window(WINDOW_TITLE, server.url, width=1280, height=840, min_size=(900, 600))
         webview.start()
     finally:

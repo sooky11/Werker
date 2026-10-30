@@ -22,10 +22,34 @@ jobs:
       - name: Installeer afhankelijkheden
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[desktop,gmail]" pyinstaller
+          python -m pip install -e ".[desktop,gmail,outlook,dev]" pyinstaller
+
+      - name: Tests
+        run: python -m pytest -q
 
       - name: Bouw het programma
         run: python packaging/build.py
+
+      # Start het gebouwde programma zonder venster en controleer dat de inbox laadt.
+      - name: Zelftest (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WERKER_HOME: ${{ runner.temp }}/werker-zelftest
+        run: |
+          $p = Start-Process -FilePath dist/Werker/Werker.exe -ArgumentList "--zelftest" -Wait -PassThru
+          Get-Content "$env:WERKER_HOME/werker.log" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Zelftest (macOS)
+        if: runner.os == 'macOS'
+        env:
+          WERKER_HOME: ${{ runner.temp }}/werker-zelftest
+        run: |
+          status=0
+          dist/Werker.app/Contents/MacOS/Werker --zelftest || status=$?
+          cat "$WERKER_HOME/werker.log" || true
+          exit $status
 
       - name: Maak een archief (Windows)
         if: runner.os == 'Windows'

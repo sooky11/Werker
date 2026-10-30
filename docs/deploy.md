@@ -93,16 +93,37 @@ De database in `./data` blijft behouden.
 
 ## Back-ups
 
-De database is een SQLite-bestand. Kopieer het met de service gestopt of met de SQLite-backupfunctie, zodat je geen half geschreven bestand meeneemt:
+Werker maakt zelf back-ups: standaard elke 24 uur een kopie van de database in `data/backups/`
+(`werker-auto-JJJJMMDD-UUMMSS.db`), en de 14 nieuwste blijven bewaard. Je stelt dit in onder
+Instellingen → Back-ups, of met `WERKER_BACKUP_HOURS` (0 = uit) en `WERKER_BACKUP_KEEP`.
+De kopie wordt gemaakt met de backup-functie van SQLite, dus ook terwijl Werker draait.
+Wachtwoorden en sleutels gaan niet mee.
+
+Een back-up op dezelfde schijf beschermt niet tegen een kapotte schijf of een gestolen server.
+Kopieer de map daarom regelmatig naar een andere plek, bijvoorbeeld met een cronjob:
 
 ```
-mkdir -p backups
+# elke nacht om 04:17 naar een andere machine (pas host en pad aan)
+17 4 * * * rsync -a --delete /pad/naar/werker/data/backups/ backup@andere-host:/backups/werker/
+```
+
+Een losse back-up met de hand, eventueel met de geheimen erbij (dat bestand is dan alleen voor de eigenaar leesbaar):
+
+```
+docker compose exec werker werker backup /data/backups/handmatig.db
+docker compose exec werker werker backup /data/backups/met-geheimen.db --met-geheimen
+```
+
+Terugzetten (maakt eerst zelf een veiligheidskopie van de huidige database):
+
+```
 docker compose stop werker sync
-cp data/werker.db backups/werker-$(date +%F).db
+docker compose run --rm werker werker restore /data/backups/werker-auto-20261101-030000.db --ja
 docker compose start werker sync
 ```
 
 Bewaar ook `.env` en `data/token.json` (als je Gmail gebruikt) op een beveiligde plek. Deze bevatten geheimen.
+Test het terugzetten minstens één keer op een andere machine; een back-up die je nooit hebt teruggezet is niet getest.
 
 ## Beveiligingscontrole
 

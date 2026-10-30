@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -143,3 +144,44 @@ def _write_secrets(path: Path, data: dict[str, str]) -> None:
         os.chmod(path, 0o600)
     except OSError:
         pass
+
+
+AUTO_PREFIX = "werker-auto-"
+AUTO_PATTERN = re.compile(r"werker-auto-(\d{8}-\d{6})\.db")
+
+
+def auto_backups(directory: Path) -> list[Path]:
+    """De automatische back-ups in `directory`, oudste eerst. Andere bestanden blijven buiten beeld."""
+    if not directory.is_dir():
+        return []
+    return sorted(p for p in directory.iterdir() if AUTO_PATTERN.fullmatch(p.name))
+
+
+def _taken_at(path: Path) -> datetime:
+    return datetime.strptime(AUTO_PATTERN.fullmatch(path.name).group(1), "%Y%m%d-%H%M%S")
+
+
+def auto_backup(
+    source: Callable[[sqlite3.Connection], None] | sqlite3.Connection,
+    directory: Path,
+    hours: float,
+    keep: int,
+    now: datetime | None = None,
+) -> Path | None:
+    """Maak een back-up als de laatste ouder is dan `hours` uur, en ruim de oudste op tot er `keep` over zijn.
+
+    Het tijdstip staat in de bestandsnaam, zodat een herstart niet meteen een nieuwe back-up maakt.
+    Geheimen gaan nooit mee. Geeft het pad van de nieuwe back-up terug, of None als er geen nodig was.
+    """
+    if hours <= 0:
+        return None
+    now = now or datetime.now()
+    existing = auto_backups(directory)
+    created = None
+    if not existing or (now - _taken_at(existing[-1])).total_seconds() >= hours * 3600:
+        created = directory / f"{AUTO_PREFIX}{now.strftime('%Y%m%d-%H%M%S')}.db"
+        copy_database(source, created)
+        existing.append(created)
+    for old in existing[: max(len(existing) - max(keep, 1), 0)]:
+        old.unlink(missing_ok=True)
+    return created

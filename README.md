@@ -120,7 +120,9 @@ werker-desktop
 
 Gegevens staan in `~/.werker/` (database, `werker.env` en `werker.log`). Het venster luistert alleen op `127.0.0.1`. Nieuwe berichten worden elke 5 minuten opgehaald (`WERKER_SYNC_MINUTES`).
 
-Installeerbare programma's (Windows en macOS) bouwt GitHub Actions: `.github/workflows/desktop-build.yml`. Start die handmatig of met een tag `v*`; de zips staan dan als artifact klaar. Lokaal bouwen kan met `python packaging/build.py`.
+Werker maakt elke 24 uur zelf een back-up in `~/.werker/backups/` en bewaart de 14 nieuwste (Instellingen → Back-ups, of `WERKER_BACKUP_HOURS` en `WERKER_BACKUP_KEEP`). Wachtwoorden en sleutels gaan niet mee. Zet die map ook op een andere schijf of in de cloud.
+
+Installeerbare programma's (Windows en macOS) bouwt GitHub Actions: `.github/workflows/desktop-build.yml`. Start die handmatig of met een tag `v*`; de workflow draait eerst de tests, bouwt dan het programma en start het gebouwde programma zonder venster (`--zelftest`) om te controleren dat de inbox laadt. De zips staan daarna als artifact klaar. Lokaal bouwen kan met `python packaging/build.py`.
 
 De programma's zijn niet ondertekend. Windows toont daarom "Windows heeft uw pc beschermd": kies *Meer informatie* en *Toch uitvoeren*. macOS vraagt om rechtsklik en *Open*. Voor ondertekening is een Apple Developer-account en een Windows-certificaat nodig.
 
@@ -132,8 +134,8 @@ De inbox is ook een installeerbare webapp. Na het inloggen met `WERKER_UI_PASSWO
 
 ## Let op
 
-- **WhatsApp**: alleen de officiële WhatsApp Business Cloud API. Vrije tekst kan alleen binnen 24 uur na het laatste bericht van de klant; daarna is een goedgekeurd template nodig, die nog niet is gebouwd.
+- **WhatsApp**: alleen de officiële WhatsApp Business Cloud API. Vrije tekst kan alleen binnen 24 uur na het laatste bericht van de klant; daarna stuurt Werker het ingestelde, door Meta goedgekeurde sjabloon (`WHATSAPP_TEMPLATE_NAME`).
 - **Gmail**: het OAuth-token maak je eenmalig met `google-auth-oauthlib`. Voor productiegebruik vraagt Google verificatie van de app aan.
-- **Privacy**: berichttekst gaat naar de Anthropic API. Neem dat op in je privacyverklaring.
+- **Privacy**: berichttekst gaat naar de Anthropic API. Neem dat op in je privacyverklaring; zie het concept in `docs/privacyverklaring-concept.md` en de checklist in `docs/verwerkers-checklist.md` (geen juridisch advies).
 - **Hosting**: de service moet op een vaste host draaien om webhooks te ontvangen. Prijzen worden per run ververst; plan `werker sync` en de prijsverversing als cron-taak (bijvoorbeeld elk uur).
-- Nog niet gebouwd: de dagelijkse digest en WhatsApp-templates voor buiten het 24-uursvenster.
+- Nog niet gebouwd: de dagelijkse digest en tweestapsverificatie.

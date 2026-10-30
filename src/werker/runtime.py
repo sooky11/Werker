@@ -30,7 +30,7 @@ from werker.connectors.peppol import build_access_point
 from werker.connectors.whatsapp import TEMPLATE_NOTICE
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
-from werker import attachments, privacy
+from werker import attachments, backup, privacy
 from werker.connectors.gmail import intent_labeler
 from werker.pipeline import Pipeline
 from werker.prices import PriceBook
@@ -67,6 +67,8 @@ SETTING_KEYS = (
     "WERKER_AI_PRICE_OUTPUT",
     "WHATSAPP_TEMPLATE_NAME",
     "WHATSAPP_TEMPLATE_LANG",
+    "WERKER_BACKUP_HOURS",
+    "WERKER_BACKUP_KEEP",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -94,8 +96,11 @@ DEFAULTS = {
     "WERKER_AI_PRICE_OUTPUT": "",
     "WHATSAPP_TEMPLATE_NAME": "",
     "WHATSAPP_TEMPLATE_LANG": "nl",
+    "WERKER_BACKUP_HOURS": "24",
+    "WERKER_BACKUP_KEEP": "14",
 }
 MAX_UNDO_SECONDS = 300
+BACKUP_CHECK_SECONDS = 600
 MAX_SIGNATURE_CHARS = 1000
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
@@ -162,6 +167,8 @@ def _validate_values(values: Mapping[str, Any]) -> None:
         "WERKER_AI_PRICE_OUTPUT": _optional_price,
         "WHATSAPP_TEMPLATE_NAME": lambda v: re.fullmatch(r"[a-z0-9_]*", str(v).strip()) is not None,
         "WHATSAPP_TEMPLATE_LANG": lambda v: re.fullmatch(r"[a-z]{2,3}(_[A-Z]{2})?", str(v).strip()) is not None,
+        "WERKER_BACKUP_HOURS": lambda v: re.fullmatch(r"\d+", str(v).strip()) is not None,
+        "WERKER_BACKUP_KEEP": lambda v: re.fullmatch(r"\d+", str(v).strip()) is not None and 1 <= int(str(v).strip()) <= 365,
     }
     for key, value in values.items():
         check = checks.get(key)
@@ -272,6 +279,8 @@ class Runtime:
             "secrets_set": {key: bool(env.get(key)) for key in SECRET_KEYS},
             "peppol_map": str(self.invoicing.folder),
             "peppol_connected": self.invoicing.access_point is not None,
+            "backup_map": str(self.backup_dir),
+            "backups": [{"naam": p.name, "grootte": p.stat().st_size} for p in reversed(backup.auto_backups(self.backup_dir))],
         }
 
     # ---------- wijzigen ----------
@@ -384,6 +393,20 @@ class Runtime:
         message_id = self.store.find_message_id(msg.channel, msg.external_id)
         self.store.audit(message_id, "sjabloon verstuurd", f"{TEMPLATE_NOTICE} (sjabloon '{template}')")
 
+    @property
+    def backup_dir(self) -> Path:
+        return self.home / "backups"
+
+    def auto_backup(self) -> Path | None:
+        """Automatische back-up volgens WERKER_BACKUP_HOURS en WERKER_BACKUP_KEEP (zonder geheimen)."""
+        env = self.env()
+        hours = int(env.get("WERKER_BACKUP_HOURS", "24") or 0)
+        keep = int(env.get("WERKER_BACKUP_KEEP", "14") or 14)
+        created = backup.auto_backup(self.store.backup_into, self.backup_dir, hours, keep)
+        if created is not None:
+            self.store.audit(None, "automatische back-up", created.name)
+        return created
+
     def reconfigure(self) -> None:
         components = self._components()
         self.invoicing.access_point = build_access_point(self.env())
@@ -408,10 +431,14 @@ def run_background(
     def loop() -> None:
         last_sync = 0.0
         last_invoices = 0.0
+        last_backup_check = -BACKUP_CHECK_SECONDS
         while not stop.wait(tick_seconds):
             try:
                 if runtime.pipeline is None:
                     continue
+                if time.monotonic() - last_backup_check >= BACKUP_CHECK_SECONDS:
+                    last_backup_check = time.monotonic()
+                    runtime.auto_backup()
                 if time.monotonic() - last_invoices >= invoice_seconds:
                     runtime.invoicing.dispatch()
                     last_invoices = time.monotonic()
