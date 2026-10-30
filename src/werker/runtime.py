@@ -24,6 +24,7 @@ import anthropic
 from werker.calendar_providers import CalendarProvider, GoogleCalendarProvider, NoCalendar, build_service
 from werker.auth import USERS_KEY, clean_accounts, load_accounts
 from werker.classify import Classifier
+from werker.clients import migrate_stored_phones
 from werker.connectors.peppol import build_access_point
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
@@ -149,6 +150,9 @@ def _calendar(env: Mapping[str, str]) -> CalendarProvider:
 class Runtime:
     def __init__(self, store: Store, home: Path, base_env: Mapping[str, str]):
         self.store = store
+        counts = migrate_stored_phones(store)
+        if counts["botsing"]:
+            log.warning("%s telefoonnummers horen bij twee klanten; voeg die klanten samen", counts["botsing"])
         self.home = home
         self._base = dict(base_env)
         self.pipeline: Pipeline | None = None

@@ -295,7 +295,17 @@ def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
     app = create_app(runtime, ui_password=ui_password)
     run_background(runtime, threading.Event())
     print(f"Werker draait op http://{args.host}:{args.port}")
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    # Achter een reverse proxy alleen het doorgegeven IP-adres vertrouwen van de proxy zelf;
+    # anders lijkt elke bezoeker hetzelfde adres te hebben en blokkeert de inlogbeveiliging iedereen.
+    trusted = env.get("WERKER_TRUSTED_PROXIES", "127.0.0.1")
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        log_level="warning",
+        proxy_headers=True,
+        forwarded_allow_ips=trusted,
+    )
     return 0
 
 

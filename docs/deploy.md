@@ -23,6 +23,8 @@ werker.example.nl {
 
 Laad daarna de configuratie opnieuw met `sudo systemctl reload caddy`. Caddy vraagt het certificaat automatisch aan zodra het domein naar de server wijst.
 
+**Inlogbeveiliging achter de proxy.** Werker blokkeert een IP-adres na vijf foute inlogpogingen. Achter een proxy ziet Werker standaard alleen het adres van de proxy, waardoor één persoon iedereen kan buitensluiten. Zet daarom in `.env` `WERKER_TRUSTED_PROXIES`. Draait Werker in Docker met de poort op `127.0.0.1:8000` (zoals in `docker-compose.yml`), dan komt de verbinding binnen via het interne Docker-adres; zet dan `WERKER_TRUSTED_PROXIES=*`. Dat is alleen veilig omdat de poort niet van buitenaf bereikbaar is; open de poort nooit naar buiten met deze instelling.
+
 ## Installatie
 
 1. Haal de code op en ga naar de projectmap:

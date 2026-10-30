@@ -396,6 +396,29 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin):
         ).fetchall()
 
     @_locked
+    def normalize_phone_identifiers(self, convert: Any) -> dict[str, int]:
+        """Zet opgeslagen telefoonnummers om met convert. Botst het nieuwe nummer met een andere klant, dan blijft het staan."""
+        counts = {"omgezet": 0, "samengevoegd": 0, "botsing": 0}
+        rows = self._db.execute("select id, client_id, value from client_identifiers where kind = 'phone'").fetchall()
+        with self._db:
+            for row in rows:
+                new = convert(row["value"])
+                if new == row["value"]:
+                    continue
+                existing = self._db.execute(
+                    "select client_id from client_identifiers where kind = 'phone' and value = ?", (new,)
+                ).fetchone()
+                if existing is None:
+                    self._db.execute("update client_identifiers set value = ? where id = ?", (new, row["id"]))
+                    counts["omgezet"] += 1
+                elif existing["client_id"] == row["client_id"]:
+                    self._db.execute("delete from client_identifiers where id = ?", (row["id"],))
+                    counts["samengevoegd"] += 1
+                else:
+                    counts["botsing"] += 1
+        return counts
+
+    @_locked
     def list_clients(self, query: str | None = None) -> list[sqlite3.Row]:
         where = ""
         params: list[Any] = []

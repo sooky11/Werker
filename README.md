@@ -80,7 +80,7 @@ De app start ook zonder API-sleutel, zodat je eerst de instellingen kunt invulle
 
 ## Klanten
 
-Berichten worden automatisch aan een klant gekoppeld op basis van het e-mailadres of telefoonnummer. Elke klant heeft een tijdlijn van alles wat er via mail, WhatsApp en iMessage binnenkwam, met de bijbehorende concepten. Een klant hernoem je, voorzie je van notities, of voeg je samen met een andere (bijvoorbeeld als iemand van twee adressen schrijft). Een Nederlands nummer in de vorm 06..., +31 6... of 0031 6... wordt als hetzelfde nummer herkend. Dat geldt voor nieuwe berichten; nummers die al bij een klant staan worden niet omgezet, dus voeg dubbele klanten van vóór deze wijziging zo nodig samen.
+Berichten worden automatisch aan een klant gekoppeld op basis van het e-mailadres of telefoonnummer. Elke klant heeft een tijdlijn van alles wat er via mail, WhatsApp en iMessage binnenkwam, met de bijbehorende concepten. Een klant hernoem je, voorzie je van notities, of voeg je samen met een andere (bijvoorbeeld als iemand van twee adressen schrijft). Een Nederlands nummer in de vorm 06..., +31 6... of 0031 6... wordt als hetzelfde nummer herkend. Nummers die al in de database staan worden bij het opstarten omgezet. Hoort hetzelfde nummer daardoor bij twee klanten, dan blijven beide staan en meldt het logboek dat je ze moet samenvoegen.
 
 ## Gerichte aanpassing en inplannen
 
