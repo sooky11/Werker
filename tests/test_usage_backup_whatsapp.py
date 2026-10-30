@@ -181,7 +181,8 @@ def test_backup_is_a_valid_copy_without_secrets(home):
 def test_backup_with_secrets_is_private(home):
     target = home / "met-geheimen.db"
     assert cli.main(["backup", str(target), "--met-geheimen"]) == 0
-    assert stat.S_IMODE(os.stat(target).st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(os.stat(target).st_mode) == 0o600
     connection = sqlite3.connect(target)
     assert dict(connection.execute("select key, value from werker_backup_secrets")) == {"ANTHROPIC_API_KEY": "sk-geheim"}
     connection.close()
@@ -211,7 +212,8 @@ def test_restore_with_secrets_writes_them_back_and_not_into_the_database(home):
 
     assert cli.main(["restore", str(target), "--ja"]) == 0
     assert json.loads((home / "secrets.json").read_text()) == {"ANTHROPIC_API_KEY": "sk-geheim"}
-    assert stat.S_IMODE(os.stat(home / "secrets.json").st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(os.stat(home / "secrets.json").st_mode) == 0o600
     assert "werker_backup_secrets" not in _tables(home / "werker.db")[0]
     [old] = list(home.glob("secrets.json.voor-herstel-*"))
     assert "sk-nieuw" in old.read_text()
