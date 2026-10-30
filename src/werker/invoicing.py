@@ -88,6 +88,8 @@ class Invoicing:
         self.access_point = access_point
         # Het mailkanaal waarmee herinneringen naar klanten gaan (een mail:-connector); None zolang er geen mailbox is.
         self.mailer: Any = None
+        # Alle mailkanalen op naam; een herinnering gaat bij voorkeur via de mailbox die de klant het laatst gebruikte.
+        self.mail_connectors: dict[str, Any] = {}
         self._lock = threading.RLock()
 
     # ---------- importeren ----------
@@ -302,6 +304,15 @@ class Invoicing:
         emails = sorted(i["value"] for i in self._store.client_identifiers(client_id) if i["kind"] == "email")
         return emails[0] if emails else None
 
+    def _mailer_for(self, client_id: int | None) -> Any:
+        """De mailbox waarop de klant het laatst schreef, als die nog gekoppeld is; anders de standaardmailbox."""
+        if client_id is not None:
+            for channel in self._store.client_mail_channels(client_id):
+                connector = self.mail_connectors.get(channel)
+                if connector is not None:
+                    return connector
+        return self.mailer
+
     def approve_reminder(self, reminder_id: int, body: str | None = None) -> None:
         """Keur een herinnering goed en verstuur haar naar het e-mailadres van de klant.
 
@@ -326,14 +337,15 @@ class Invoicing:
             self._store.update_reminder(reminder_id, status=REMINDER_NO_ADDRESS)
             raise ValueError("geen e-mailadres bekend voor deze klant; voeg er bij de klant een toe")
         text = body if body is not None else row["body"]
-        if self.mailer is None:
+        mailer = self._mailer_for(invoice["client_id"])
+        if mailer is None:
             reason = "geen mailbox gekoppeld; koppel er een bij Instellingen"
             self._store.update_reminder(reminder_id, status=REMINDER_WAITING, recipient=recipient, body=text, last_error=reason)
             raise ReminderSendError(reason)
         self._store.update_reminder(reminder_id, status=REMINDER_WAITING, recipient=recipient, body=text)
         try:
             # Een herinnering is een nieuwe mail, geen antwoord: dus geen "Re:" en geen verwijzing naar een eerder bericht.
-            self.mailer.send_new(recipient, row["subject"], text)
+            mailer.send_new(recipient, row["subject"], text)
         except Exception as exc:
             self._store.update_reminder(reminder_id, last_error=str(exc))
             self._store.audit(None, "herinnering mislukt", f"{invoice['number']}: {exc}")
@@ -341,7 +353,10 @@ class Invoicing:
         self._store.update_reminder(
             reminder_id, status=REMINDER_SENT, sent_at=now.isoformat(), decided_at=now.isoformat(), last_error=""
         )
-        self._store.audit(None, "herinnering verzonden", f"{invoice['number']} naar {recipient}")
+        via = getattr(mailer, "name", "")
+        self._store.audit(
+            None, "herinnering verzonden", f"{invoice['number']} naar {recipient}" + (f" via {via}" if via else "")
+        )
 
     def reject_reminder(self, reminder_id: int) -> None:
         with self._lock:

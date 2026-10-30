@@ -99,7 +99,12 @@ def build_connectors(env: Mapping[str, str]) -> dict[str, Connector]:
     if env.get("WHATSAPP_TOKEN"):
         from werker.connectors.whatsapp import WhatsAppConnector
 
-        connectors["whatsapp"] = WhatsAppConnector(env["WHATSAPP_PHONE_NUMBER_ID"], env["WHATSAPP_TOKEN"])
+        connectors["whatsapp"] = WhatsAppConnector(
+            env["WHATSAPP_PHONE_NUMBER_ID"],
+            env["WHATSAPP_TOKEN"],
+            template_name=env.get("WHATSAPP_TEMPLATE_NAME", ""),
+            template_lang=env.get("WHATSAPP_TEMPLATE_LANG", "nl"),
+        )
     if env.get("WERKER_IMESSAGE", "true") == "true" and imessage.available():
         connectors["imessage"] = imessage.IMessageConnector()
     return connectors
@@ -275,6 +280,49 @@ def cmd_reset_password(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backup(settings: Settings, args: argparse.Namespace) -> int:
+    """Samenhangende kopie van de database, ook terwijl de app draait. Geheimen alleen met --met-geheimen."""
+    from werker.backup import BackupError, backup
+
+    db_path = Path(settings.db_path).resolve()
+    secrets_path = db_path.parent / "secrets.json" if args.met_geheimen else None
+    try:
+        backup(db_path, Path(args.bestand), secrets_path=secrets_path)
+    except (BackupError, OSError) as exc:
+        print(f"Back-up mislukt: {exc}", file=sys.stderr)
+        return 1
+    if args.met_geheimen:
+        print(f"Back-up met geheimen geschreven naar {args.bestand} (alleen leesbaar voor jou). Bewaar dit bestand veilig.")
+    else:
+        print(f"Back-up geschreven naar {args.bestand}. Geheimen (secrets.json) zitten er niet in.")
+    return 0
+
+
+def cmd_restore(settings: Settings, args: argparse.Namespace) -> int:
+    """Zet een back-up terug. Stop de app eerst; ter bevestiging is --ja nodig."""
+    from werker.backup import BackupError, restore
+
+    if not args.ja:
+        print(
+            "Herstellen overschrijft de huidige database. Stop eerst Werker (de server en de desktop-app) "
+            "en draai dit opnieuw met --ja om te bevestigen.",
+            file=sys.stderr,
+        )
+        return 1
+    db_path = Path(settings.db_path).resolve()
+    try:
+        safety = restore(Path(args.bestand), db_path, db_path.parent / "secrets.json")
+    except (BackupError, OSError) as exc:
+        print(f"Herstellen mislukt: {exc}. Er is niets gewijzigd.", file=sys.stderr)
+        return 1
+    if safety["database"]:
+        print(f"Veiligheidskopie van de vorige database: {safety['database']}")
+    if safety["geheimen"]:
+        print(f"Veiligheidskopie van de vorige geheimen: {safety['geheimen']}")
+    print(f"Back-up {args.bestand} teruggezet. Start Werker opnieuw.")
+    return 0
+
+
 def cmd_serve(settings: Settings, args: argparse.Namespace) -> int:
     import threading
 
@@ -334,6 +382,14 @@ def main(argv: list[str] | None = None) -> int:
     reset = sub.add_parser("reset-password", help="Zet een nieuw wachtwoord voor een teamaccount.")
     reset.add_argument("name", metavar="naam")
 
+    backup = sub.add_parser("backup", help="Schrijf een back-up van de database (ook terwijl de app draait).")
+    backup.add_argument("bestand")
+    backup.add_argument("--met-geheimen", action="store_true", help="Neem ook secrets.json mee (API-sleutels, wachtwoorden).")
+
+    restore = sub.add_parser("restore", help="Zet een back-up terug; stop eerst de app.")
+    restore.add_argument("bestand")
+    restore.add_argument("--ja", action="store_true", help="Bevestig dat de huidige database overschreven mag worden.")
+
     sub.add_parser("outlook-login", help="Log in bij Outlook (Microsoft 365) met een inlogcode.")
     serve = sub.add_parser("serve", help="Start de inbox-webpagina en de WhatsApp-webhook.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -350,6 +406,8 @@ def main(argv: list[str] | None = None) -> int:
         "serve": cmd_serve,
         "outlook-login": cmd_outlook_login,
         "reset-password": cmd_reset_password,
+        "backup": cmd_backup,
+        "restore": cmd_restore,
     }
     args = parser.parse_args(argv)
     return handlers[args.command](Settings.from_env(), args)

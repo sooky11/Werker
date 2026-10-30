@@ -69,6 +69,13 @@ def billing_router(runtime: Runtime, ui_auth: Any) -> APIRouter:
 
     @router.get("/api/reports", dependencies=[ui_auth])
     def reports(days: int = Query(30, ge=1, le=366)) -> dict[str, Any]:
-        return summary(runtime.store, datetime.now(timezone.utc), days=days)
+        env = runtime.env()
+        return summary(
+            runtime.store,
+            datetime.now(timezone.utc),
+            days=days,
+            price_input=env.get("WERKER_AI_PRICE_INPUT"),
+            price_output=env.get("WERKER_AI_PRICE_OUTPUT"),
+        )
 
     return router

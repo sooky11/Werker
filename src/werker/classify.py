@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from werker.llm import render_message, tool_input
+from werker.llm import UsageCallback, render_message, report_usage, tool_input
 from werker.models import Classification, Intent, Message
 
 CLASSIFY_MODEL = "claude-haiku-5-5"
@@ -38,9 +38,10 @@ TOOL: dict[str, Any] = {
 
 
 class Classifier:
-    def __init__(self, client: Any, model: str = CLASSIFY_MODEL):
+    def __init__(self, client: Any, model: str = CLASSIFY_MODEL, on_usage: UsageCallback | None = None):
         self._client = client
         self._model = model
+        self._on_usage = on_usage
 
     def classify(self, msg: Message) -> Classification:
         response = self._client.messages.create(
@@ -51,6 +52,7 @@ class Classifier:
             tool_choice={"type": "tool", "name": TOOL_NAME},
             messages=[{"role": "user", "content": render_message(msg)}],
         )
+        report_usage(self._on_usage, "classificeren", self._model, response)
         data = tool_input(response, TOOL_NAME)
         return Classification(
             intent=Intent(data["intent"]),

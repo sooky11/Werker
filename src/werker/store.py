@@ -132,9 +132,10 @@ from werker.store_reports import ReportsStoreMixin  # noqa: E402
 from werker.store_rules import RulesStoreMixin  # noqa: E402
 from werker.store_attachments import AttachmentsStoreMixin  # noqa: E402
 from werker.store_snippets import SnippetsStoreMixin  # noqa: E402
+from werker.store_usage import UsageStoreMixin  # noqa: E402
 
 
-class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreMixin, AttachmentsStoreMixin, SnippetsStoreMixin):
+class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreMixin, AttachmentsStoreMixin, SnippetsStoreMixin, UsageStoreMixin):
     def __init__(self, path: str):
         self._lock = threading.RLock()
         self._db = sqlite3.connect(path, check_same_thread=False)
@@ -146,9 +147,15 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreM
         self._ensure_rules_schema()
         self._ensure_attachments_schema()
         self._ensure_snippets_schema()
+        self._ensure_usage_schema()
 
     def close(self) -> None:
         self._db.close()
+
+    @_locked
+    def backup_into(self, target: sqlite3.Connection) -> None:
+        """Schrijf een samenhangende kopie van de database naar `target` (sqlite3 backup-API)."""
+        self._db.backup(target)
 
     def _migrate(self) -> None:
         for table, columns in _ADDED_COLUMNS.items():

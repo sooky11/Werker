@@ -42,6 +42,17 @@ class BillingStoreMixin:
         self._db.executescript(BILLING_SCHEMA)
 
     @_locked
+    def client_mail_channels(self, client_id: int) -> list[str]:
+        """De mailkanalen (mail:...) waarop deze klant berichten stuurde, het laatst gebruikte eerst."""
+        rows = self._db.execute(
+            """select channel, max(received_at) as last from messages
+               where client_id = ? and channel like 'mail:%'
+               group by channel order by last desc""",
+            (client_id,),
+        ).fetchall()
+        return [row["channel"] for row in rows]
+
+    @_locked
     def last_reminder_at(self, invoice_id: int) -> str | None:
         row = self._db.execute(
             "select max(created_at) as last from reminders where invoice_id = ?", (invoice_id,)
