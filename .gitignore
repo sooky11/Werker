@@ -10,3 +10,4 @@ build/
 *.spec
 secrets.json
 .claude/
+screenshots/
