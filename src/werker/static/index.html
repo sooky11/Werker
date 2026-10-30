@@ -133,6 +133,7 @@
   .btn.small { height: 30px; padding: 0 10px; font-size: 13px; }
   .btn:disabled { opacity: .5; cursor: default; }
   .btn.icon-btn { display: inline-flex; align-items: center; gap: 6px; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; color: inherit; flex: none; }
   .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 
   /* Layout */
@@ -337,11 +338,11 @@
   .settings-section { margin-bottom: 16px; }
   .section-title { margin: 0 0 4px; font-size: 16px; font-weight: 650; }
   .section-intro { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-  .mailbox-card {
+  .mailbox-card, .sub-card {
     border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 2px; margin: 0 0 12px;
     background: var(--surface-2); min-width: 0;
   }
-  .mailbox-card legend { font-weight: 650; padding: 0 6px; font-size: 14px; }
+  .mailbox-card legend, .sub-card legend { font-weight: 650; padding: 0 6px; font-size: 14px; }
   .form-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
 
   /* Begin-kaart (eerste keer) */
@@ -412,6 +413,79 @@
     .user-row { grid-template-columns: 1fr; }
   }
 
+  /* Ongedaan maken na verzenden */
+  .undo-bar {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
+    display: flex; align-items: center; gap: 14px; padding: 6px 6px 6px 16px; border-radius: 999px;
+    background: var(--text); color: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+    max-width: calc(100vw - 32px);
+  }
+  .undo-bar .btn { height: 32px; background: var(--bg); color: var(--text); border-color: transparent; }
+  .undo-bar .btn:hover { background: var(--surface-2); }
+  .undo-count { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  body.has-undo .toast { bottom: 84px; }
+
+  /* Categorie aanpassen */
+  .intent-edit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .intent-select {
+    height: 28px; padding: 0 8px 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); max-width: 100%;
+  }
+  .intent-select option { color: var(--text); background: var(--surface); }
+  .intent-select.prijsvraag { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+  .intent-select.afspraak { color: var(--info); background: var(--info-soft); border-color: transparent; }
+  .intent-select.klacht { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+  .intent-select.factuur { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+  .check-label.small { font-size: 13px; font-weight: 550; gap: 6px; color: var(--muted); }
+  .check-label.small input { width: 15px; height: 15px; }
+
+  /* Antwoordblokken */
+  .snippet-pop {
+    margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
+    padding: 6px; display: grid; gap: 2px; max-height: 280px; overflow-y: auto;
+  }
+  .snippet-option {
+    display: block; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px;
+    padding: 8px 10px; min-width: 0;
+  }
+  .snippet-option:hover, .snippet-option:focus-visible { background: var(--surface); }
+  .snippet-option strong { display: block; font-size: 14px; font-weight: 600; }
+  .snippet-option span {
+    display: block; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .snippet-pop .hint { margin: 6px 10px; }
+  .counter { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Bijlagen */
+  .att-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .att-item {
+    display: flex; align-items: center; gap: 12px; padding: 8px 12px 8px 8px; min-width: 0;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
+  }
+  .att-thumb {
+    width: 56px; height: 56px; object-fit: cover; border-radius: 6px; flex: none;
+    border: 1px solid var(--border); background: var(--surface);
+  }
+  .att-icon {
+    width: 56px; height: 56px; display: grid; place-items: center; flex: none; color: var(--muted);
+    border-radius: 6px; background: var(--surface);
+  }
+  .att-info { flex: 1; min-width: 0; }
+  .att-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .att-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 13px; color: var(--muted); }
+
+  /* Afzenderregels, AI-rapport */
+  .rule-list { list-style: none; margin: 0; padding: 0; }
+  .rule-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .rule-row:last-child { border-bottom: 0; }
+  .rule-row .grow { flex: 1; min-width: 160px; overflow-wrap: anywhere; }
+  .table-wrap { overflow-x: auto; margin-top: 4px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.data th, table.data td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.data th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
+  table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data tr:last-child td { border-bottom: 0; }
+
   /* Responsive */
   @media (max-width: 1100px) {
     .layout { grid-template-columns: 200px minmax(280px, 340px) minmax(0, 1fr); }
@@ -419,7 +493,7 @@
   @media (max-width: 860px) {
     header { padding: 0 12px; gap: 8px; }
     .brand span.word { display: none; }
-    .layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 60px); }
+    .layout { grid-template-columns: minmax(0, 1fr); height: auto; min-height: calc(100vh - 60px); }
     nav {
       display: flex; gap: 6px; overflow-x: auto; padding: 10px 12px; border-right: 0;
       border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 5;
@@ -602,6 +676,10 @@
     plus: [["path", { d: "M12 5v14M5 12h14" }]],
     arrow: [["path", { d: "M9 6l6 6-6 6" }]],
     sync: [["path", { d: "M21 12a9 9 0 1 1-2.64-6.36" }], ["path", { d: "M21 4v5h-5" }]],
+    clip: [["path", { d: "M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9" }]],
+    download: [["path", { d: "M12 3v12M7 10l5 5 5-5" }], ["path", { d: "M4 19h16" }]],
+    image: [["rect", { x: 3, y: 4, width: 18, height: 16, rx: 2 }], ["circle", { cx: 9, cy: 10, r: 2 }], ["path", { d: "M21 17l-5-5-9 8" }]],
+    snippet: [["path", { d: "M4 6h16M4 10h10M4 14h16M4 18h8" }]],
   };
   const TAB_ICONS = {
     pending: "clock", ingepland: "calendar", all: "list", prijsvraag: "chat", afspraak: "calendar", klacht: "alert",
@@ -623,7 +701,17 @@
   }
 
   // Koppeling van instellingen-secties aan een id, zodat de begin-kaart ernaar kan scrollen.
-  const SECTION_IDS = { AI: "instelling-ai", Synchronisatie: "instelling-synchronisatie", Mailboxen: "instelling-mailboxen" };
+  const SECTION_IDS = {
+    AI: "instelling-ai", Synchronisatie: "instelling-synchronisatie", Mailboxen: "instelling-mailboxen",
+    Bedenktijd: "instelling-bedenktijd", Ondertekening: "instelling-ondertekening",
+    Antwoordblokken: "instelling-antwoordblokken", "Onthouden afzenders": "instelling-afzenders", "Back-up": "instelling-backup",
+  };
+  // Afbeeldingen die als klein voorbeeld getoond mogen worden; al het andere alleen als download.
+  const PREVIEW_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+  const SNIPPET_TITLE_MAX = 80;
+  const SNIPPET_BODY_MAX = 2000;
+  const SIGNATURE_MAX = 1000;
+  const WAITING_FOR_CUSTOMER = "wacht op klant";
   const SETUP_KEY = "werker-begin-verborgen";
   const SETUP_SECTIONS = { ai: "instelling-ai", prijs: "instelling-synchronisatie", mailbox: "instelling-mailboxen" };
 
@@ -893,7 +981,8 @@
         h("div", { class: "chip-row" },
           intentChip(m.intent),
           channelChip(m.channel),
-          m.draft_id ? h("span", { class: "chip wacht", text: "Concept klaar" }) : null,
+          m.status === WAITING_FOR_CUSTOMER ? h("span", { class: "chip afspraak", text: "Wacht op klant" })
+            : m.draft_id ? h("span", { class: "chip wacht", text: "Concept klaar" }) : null,
         ),
       );
     }));
@@ -1025,9 +1114,12 @@
     highlightItems();
     setReader(loadingNode("Bericht openen…"));
     try {
-      const message = await api(`/api/messages/${encodeURIComponent(key)}`);
+      const [message, attachments] = await Promise.all([
+        api(`/api/messages/${encodeURIComponent(key)}`),
+        api(`/api/messages/${encodeURIComponent(key)}/attachments`).catch(() => []),
+      ]);
       if (state.selected !== key || state.reader !== "message") return;
-      renderMessage(message);
+      renderMessage(message, Array.isArray(attachments) ? attachments : []);
       if (window.matchMedia("(max-width: 860px)").matches) {
         document.querySelector(`.item[data-id="${CSS.escape(key)}"]`)?.scrollIntoView({ block: "nearest" });
       }
@@ -1037,7 +1129,7 @@
     }
   }
 
-  function renderMessage(m) {
+  function renderMessage(m, attachments = []) {
     const name = displaySender(m.sender);
     const address = (m.sender.match(/<([^>]+)>/) || [])[1] || (m.sender.includes("@") ? m.sender : "");
     const nameNode = m.client_id
@@ -1058,11 +1150,16 @@
       ),
       h("h1", { text: m.subject || "(geen onderwerp)" }),
       h("div", { class: "meta" },
-        intentChip(m.intent),
+        intentEditor(m),
         urgencyChip(m.urgency),
         h("span", { text: `Status: ${m.status}` }),
       ),
     );
+
+    const waiting = m.status === WAITING_FOR_CUSTOMER
+      ? h("div", { class: "notice info", role: "note" }, svgIcon("chat"),
+          h("div", { text: "Alleen het WhatsApp-sjabloon is verstuurd; je antwoord blijft klaarstaan tot de klant reageert." }))
+      : null;
 
     const summary = m.summary ? h("div", { class: "card" },
       h("h3", { text: "Samenvatting" }),
@@ -1077,7 +1174,91 @@
     const activity = renderActivity(m);
 
     setReader(h("div", { class: "reader-inner" },
-      header, summary, bodyCard, renderDraftCard(m), activity));
+      header, waiting, summary, bodyCard, renderAttachments(attachments), renderDraftCard(m), activity));
+  }
+
+  /* Categorie aanpassen, eventueel onthouden voor deze afzender. */
+  function intentEditor(m) {
+    const selectId = uid("intent");
+    const current = INTENT_LABELS[m.intent] ? m.intent : "";
+    const select = h("select", { id: selectId, class: `intent-select ${current}` },
+      current ? null : h("option", { value: "", text: "Onbekend", selected: true, disabled: true }),
+      Object.entries(INTENT_LABELS).map(([value, label]) => h("option", { value, text: label, selected: value === current })),
+    );
+    const remember = h("input", { type: "checkbox" });
+    const save = h("button", { class: "btn small primary", type: "button", text: "Categorie opslaan", hidden: true });
+    const update = () => {
+      select.className = `intent-select ${select.value}`;
+      save.hidden = !select.value || (select.value === current && !remember.checked);
+    };
+    select.addEventListener("change", update);
+    remember.addEventListener("change", update);
+    save.addEventListener("click", () => correctIntent(m, select.value, remember.checked, save));
+    return h("span", { class: "intent-edit" },
+      h("label", { for: selectId, class: "sr-only", text: "Categorie" }),
+      select,
+      h("label", { class: "check-label small" }, remember, h("span", { text: "Onthoud voor deze afzender" })),
+      save,
+    );
+  }
+
+  async function correctIntent(m, intent, remember, button) {
+    button.disabled = true;
+    try {
+      const result = await api(`/api/messages/${encodeURIComponent(m.id)}/intent`, {
+        method: "PATCH",
+        body: JSON.stringify({ intent, remember }),
+      });
+      const label = INTENT_LABELS[result.intent] || result.intent;
+      toast(result.rule_id ? `Categorie is nu ${label}, en onthouden voor deze afzender` : `Categorie is nu ${label}`);
+    } catch (error) {
+      toast(error.message, true);
+      button.disabled = false;
+      // Bij een ontbrekend afzenderadres is de categorie wel aangepast; ververs dan toch.
+      if (error.status !== 422 || !remember) return;
+    }
+    await refresh();
+  }
+
+  /* ---------- bijlagen ---------- */
+
+  function formatSize(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024)).toLocaleString("nl-NL")} KB`;
+    return `${(n / (1024 * 1024)).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} MB`;
+  }
+
+  function attachmentUrl(a) {
+    // Alleen de eigen downloadroute, nooit een adres uit het bericht zelf.
+    return a.too_large ? null : `/api/attachments/${encodeURIComponent(a.id)}`;
+  }
+
+  function renderAttachments(list) {
+    if (!list.length) return null;
+    return h("div", { class: "card" },
+      h("h3", { text: `Bijlagen (${list.length})` }),
+      h("ul", { class: "att-list" }, list.map((a) => {
+        const url = attachmentUrl(a);
+        const type = String(a.content_type || "").split(";")[0].trim().toLowerCase();
+        const preview = url && PREVIEW_IMAGE_TYPES.has(type)
+          ? h("img", { class: "att-thumb", src: url, alt: "", loading: "lazy" })
+          : h("span", { class: "att-icon" }, svgIcon(type.startsWith("image/") ? "image" : "file"));
+        const name = a.filename || "bijlage";
+        return h("li", { class: "att-item" },
+          preview,
+          h("div", { class: "att-info" },
+            h("div", { class: "att-name", title: name, text: name }),
+            h("div", { class: "att-meta" },
+              h("span", { text: formatSize(a.size) }),
+              a.too_large ? h("span", { class: "chip klacht", text: "te groot" }) : null,
+              a.too_large ? h("span", { text: "Niet bewaard" }) : null,
+            ),
+          ),
+          url ? h("a", { class: "btn small icon-btn", href: url, download: name, "aria-label": `${name} downloaden` },
+            svgIcon("download"), h("span", { class: "hide-small", text: "Downloaden" })) : null,
+        );
+      })),
+    );
   }
 
   function renderDraftCard(m) {
@@ -1158,6 +1339,14 @@
     const approve = h("button", { class: "btn primary", type: "button", text: "Goedkeuren en verzenden" });
     const reject = h("button", { class: "btn danger", type: "button", text: "Afwijzen" });
     const reset = h("button", { class: "btn ghost", type: "button", text: "Herstel concept" });
+    const snippetPop = h("div", { class: "snippet-pop", id: uid("snippets"), hidden: true });
+    const snippetButton = h("button", {
+      class: "btn icon-btn", type: "button", "aria-expanded": "false", "aria-controls": snippetPop.id,
+    }, svgIcon("snippet"), h("span", { text: "Antwoordblok invoegen" }));
+    snippetButton.addEventListener("click", () => toggleSnippets(snippetPop, snippetButton, textarea));
+    snippetPop.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") { closeSnippets(snippetPop, snippetButton); snippetButton.focus(); }
+    });
 
     const ui = { textarea, select, custom, approve };
     approve.addEventListener("click", () => approveDraft(draft, ui, false));
@@ -1174,9 +1363,111 @@
       draft.change_summary ? renderChangeNotice(draft) : null,
       renderWarnings(draft),
       textarea,
-      h("div", { class: "actions" }, reset, h("span", { class: "spacer" }), reject, custom, select, approve),
+      snippetPop,
+      h("div", { class: "actions" }, reset, snippetButton, h("span", { class: "spacer" }), reject, custom, select, approve),
       h("div", { class: "hint", text: "Wijzig de tekst gerust. Het verzenden gebeurt pas na goedkeuring." }),
     );
+  }
+
+  /* ---------- antwoordblokken invoegen ---------- */
+
+  function closeSnippets(pop, button) {
+    pop.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+  }
+
+  function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? start;
+    textarea.focus();
+    textarea.setRangeText(text, start, end, "end");
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  async function toggleSnippets(pop, button, textarea) {
+    if (!pop.hidden) { closeSnippets(pop, button); return; }
+    pop.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    pop.replaceChildren(h("p", { class: "hint", text: "Antwoordblokken laden…" }));
+    let snippets;
+    try {
+      snippets = await api("/api/snippets");
+    } catch (error) {
+      pop.replaceChildren(h("p", { class: "hint", text: `Kon de antwoordblokken niet laden: ${error.message}` }));
+      return;
+    }
+    if (pop.hidden) return;
+    if (!snippets.length) {
+      pop.replaceChildren(h("p", { class: "hint" },
+        "Nog geen antwoordblokken. Maak ze aan bij ",
+        h("a", { class: "link", href: "#instellingen", onclick: () => { state.settingsFocus = SECTION_IDS.Antwoordblokken; } , text: "Instellingen" }),
+        "."));
+      return;
+    }
+    pop.replaceChildren(...snippets.map((snippet) => h("button", {
+      class: "snippet-option",
+      type: "button",
+      onclick: () => {
+        closeSnippets(pop, button);
+        insertAtCursor(textarea, snippet.body);
+        toast(`Antwoordblok „${snippet.title}” ingevoegd`);
+      },
+    }, h("strong", { text: snippet.title }), h("span", { text: snippet.body }))));
+    pop.querySelector(".snippet-option")?.focus();
+  }
+
+  /* ---------- verzenden ongedaan maken ---------- */
+
+  const undo = { timer: null, bar: null };
+
+  function hideUndo() {
+    clearInterval(undo.timer);
+    clearTimeout(undo.timer);
+    undo.timer = null;
+    undo.bar?.remove();
+    undo.bar = null;
+    document.body.classList.remove("has-undo");
+  }
+
+  function showUndo(result) {
+    hideUndo();
+    // Klokverschil met de server afvangen: nooit langer dan de grootste bedenktijd (300 s).
+    const left = Math.max(0, Math.min(Date.parse(result.undo_until) - Date.now(), 300000));
+    const deadline = Date.now() + (Number.isFinite(left) ? left : 0);
+    const count = h("span", { class: "undo-count", "aria-live": "off" });
+    const button = h("button", { class: "btn small", type: "button", text: "Ongedaan maken" });
+    const bar = h("div", { class: "undo-bar", role: "region", "aria-label": "Verzenden ongedaan maken" },
+      h("span", { class: "sr-only", role: "status", text: "Antwoord goedgekeurd. Je kunt het verzenden nog ongedaan maken." }),
+      count, button);
+    button.addEventListener("click", () => undoSend(result.draft_id, button));
+    const tick = () => {
+      const seconds = Math.ceil((deadline - Date.now()) / 1000);
+      if (seconds > 0) { count.textContent = `Verzonden over ${seconds} s`; return; }
+      clearInterval(undo.timer);
+      count.textContent = "Wordt verzonden…";
+      button.disabled = true;
+      // De achtergrondtaak verstuurt binnen enkele seconden; daarna de weergave bijwerken.
+      undo.timer = setTimeout(() => { hideUndo(); refresh(); }, 6000);
+    };
+    undo.bar = bar;
+    document.body.append(bar);
+    document.body.classList.add("has-undo");
+    tick();
+    if (deadline > Date.now()) undo.timer = setInterval(tick, 250);
+    button.focus({ preventScroll: true });
+  }
+
+  async function undoSend(draftId, button) {
+    button.disabled = true;
+    try {
+      await api(`/api/drafts/${encodeURIComponent(draftId)}/cancel-schedule`, { method: "POST" });
+      hideUndo();
+      toast("Verzenden ongedaan gemaakt. Het concept staat weer klaar.");
+    } catch (error) {
+      hideUndo();
+      toast(`Ongedaan maken lukte niet: ${error.message}`, true);
+    }
+    await refresh();
   }
 
   function renderScheduledDraft(draft) {
@@ -1229,7 +1520,8 @@
     ui.approve.disabled = true;
     try {
       const result = await api(`/api/drafts/${draft.id}/approve`, { method: "POST", body: JSON.stringify(payload) });
-      toast(result.status === "ingepland" ? "Antwoord ingepland" : "Antwoord verzonden");
+      if (result && result.undo_until) showUndo(result);
+      else toast(result && result.status === "ingepland" ? "Antwoord ingepland" : "Antwoord verzonden");
     } catch (error) {
       if (error.status === 409 && !force) {
         if (confirm(`${error.message}\n\nToch verzenden?`)) return approveDraft(draft, ui, true);
@@ -1578,6 +1870,7 @@
     const errorBox = h("div", { id: "settings-error", class: "notice warn", role: "alert", hidden: true });
     const mailboxList = h("div", { id: "mailboxes" }, (data.mailboxes || []).map((mb) => mailboxCard(mb)));
     const usersList = h("div", { id: "users" }, (data.users || []).map((user) => userRow(user)));
+    state.hadUsers = (data.users || []).length > 0;
     const logEntries = privacyLog || [];
     const retentionHint = h("div", { class: "hint flush" });
     const setRetentionHint = (value) => {
@@ -1621,6 +1914,35 @@
         "De sleutel voor het taalmodel. Na opslaan wordt de sleutel nooit meer getoond.",
         field("s-anthropic", "Anthropic API-sleutel", secretInput("s-anthropic", "ANTHROPIC_API_KEY"),
           "Laat leeg om de bestaande sleutel te behouden."),
+        h("div", { class: "grid-2" },
+          field("s-aiin", "Prijs invoer (€ per miljoen tokens)",
+            h("input", { id: "s-aiin", class: "input", type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "niet ingesteld", value: v.WERKER_AI_PRICE_INPUT ?? "" })),
+          field("s-aiout", "Prijs uitvoer (€ per miljoen tokens)",
+            h("input", { id: "s-aiout", class: "input", type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "niet ingesteld", value: v.WERKER_AI_PRICE_OUTPUT ?? "" })),
+        ),
+        h("div", { class: "hint flush", text: "Vul de actuele prijzen van je abonnement in. Rapporten tonen dan een geschatte prijs; leeg laten mag." }),
+      ),
+
+      settingsSection("Bedenktijd",
+        "Na „Nu verzenden” wacht Werker even, zodat je het verzenden nog ongedaan kunt maken.",
+        field("s-undo", "Bedenktijd (seconden)",
+          h("input", { id: "s-undo", class: "input", type: "number", step: "1", min: "0", max: "300", inputmode: "numeric", value: v.WERKER_UNDO_SECONDS ?? "30" }),
+          "Tussen 0 en 300. Bij 0 gaat een antwoord meteen de deur uit en is ongedaan maken niet mogelijk."),
+      ),
+
+      settingsSection("Ondertekening",
+        "Een vaste afsluiting per kanaal. Die wordt onder elk antwoord gezet; een leeg veld betekent geen ondertekening.",
+        signatureFields(data),
+      ),
+
+      settingsSection("Antwoordblokken",
+        `Vaste stukken tekst die je met één klik in een concept zet. Titel hoogstens ${SNIPPET_TITLE_MAX} tekens, tekst hoogstens ${SNIPPET_BODY_MAX}. Iedereen mag ze maken en aanpassen; alleen een beheerder kan ze verwijderen.`,
+        snippetSettings(),
+      ),
+
+      settingsSection("Onthouden afzenders",
+        "Als je bij een bericht de categorie aanpast en „Onthoud voor deze afzender” aanvinkt, krijgen nieuwe berichten van dat adres meteen die categorie. Alleen een beheerder kan deze lijst bekijken en regels verwijderen.",
+        senderRuleSettings(),
       ),
 
       settingsSection("Eigen adressen en blokkeren",
@@ -1675,6 +1997,13 @@
           "Laat leeg om het bestaande geheim te behouden."),
         field("s-waverify", "Verificatietoken (WHATSAPP_VERIFY_TOKEN)", secretInput("s-waverify", "WHATSAPP_VERIFY_TOKEN"),
           "Laat leeg om het bestaande token te behouden."),
+        h("div", { class: "grid-2" },
+          field("s-watpl", "Sjabloonnaam (WHATSAPP_TEMPLATE_NAME)",
+            h("input", { id: "s-watpl", class: "input", type: "text", autocomplete: "off", pattern: "[a-z0-9_]*", placeholder: "bijvoorbeeld antwoord_klaar", value: v.WHATSAPP_TEMPLATE_NAME ?? "" })),
+          field("s-walang", "Taal van het sjabloon (WHATSAPP_TEMPLATE_LANG)",
+            h("input", { id: "s-walang", class: "input", type: "text", autocomplete: "off", placeholder: "nl", value: v.WHATSAPP_TEMPLATE_LANG ?? "nl" })),
+        ),
+        h("div", { class: "hint flush", text: "Een goedgekeurd sjabloon bij Meta voor berichten na 24 uur. Buiten dat venster gaat eerst het sjabloon; je antwoord volgt als de klant reageert." }),
         h("h3", { class: "card-subtitle", text: "Peppol" }),
         field("s-pepprov", "Access point",
           h("select", { id: "s-pepprov", class: "input" },
@@ -1740,6 +2069,11 @@
           : h("p", { class: "hint flush", text: "Er is nog niets verwijderd." }),
       ),
 
+      settingsSection("Back-up",
+        "Download een kopie van de database: berichten, concepten, klanten, facturen en instellingen. Geheimen zoals API-sleutels, tokens en wachtwoorden zitten er niet in; die staan apart in secrets.json en moet je zelf veilig bewaren.",
+        backupControls(),
+      ),
+
       h("div", { class: "form-footer" },
         h("button", { class: "btn primary", type: "submit", text: "Opslaan" }),
       ),
@@ -1747,6 +2081,229 @@
 
     setReader(form);
     state.reader = "settings";
+  }
+
+  /* ---------- ondertekening per kanaal ---------- */
+
+  function parseSignatures(raw) {
+    try {
+      const data = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+      return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function signatureChannels(data, stored) {
+    const values = data.values || {};
+    const list = (data.mailboxes || []).filter((mb) => mb.name).map((mb) => [`mail:${mb.name}`, `Mailbox ${mb.name}`]);
+    list.push(["mail:gmail", "Gmail"]);
+    if (String(values.WERKER_OUTLOOK_CLIENT_ID || "").trim() || stored["mail:outlook"]) list.push(["mail:outlook", "Outlook"]);
+    list.push(["whatsapp", "WhatsApp"], ["imessage", "iMessage"]);
+    // Een ondertekening voor een kanaal dat hier niet (meer) staat, blijft zichtbaar zodat ze niet stilletjes verdwijnt.
+    for (const key of Object.keys(stored)) {
+      if (!list.some(([channel]) => channel === key)) list.push([key, channelLabel(key)]);
+    }
+    return list;
+  }
+
+  function signatureFields(data) {
+    const stored = parseSignatures((data.values || {}).WERKER_SIGNATURES);
+    return h("div", { id: "signatures" }, signatureChannels(data, stored).map(([channel, label]) => {
+      const id = uid("sig");
+      const area = h("textarea", {
+        id, class: "input", rows: "3", maxlength: String(SIGNATURE_MAX), "data-sig-channel": channel,
+        placeholder: "Geen ondertekening",
+      });
+      area.value = typeof stored[channel] === "string" ? stored[channel] : "";
+      return field(id, label, area);
+    }), h("div", { class: "hint flush", text: "Wordt onder elk antwoord gezet. Staat de tekst al onderaan het concept, dan komt hij er niet nog een keer onder." }));
+  }
+
+  function readSignatures() {
+    const result = {};
+    document.querySelectorAll("[data-sig-channel]").forEach((area) => {
+      const text = area.value.trim();
+      if (text) result[area.dataset.sigChannel] = text;
+    });
+    return result;
+  }
+
+  /* ---------- antwoordblokken beheren ---------- */
+
+  function charCounter(control, max) {
+    const counter = h("div", { class: "counter", "aria-live": "off" });
+    const update = () => { counter.textContent = `${control.value.length} / ${max}`; };
+    control.addEventListener("input", update);
+    update();
+    return counter;
+  }
+
+  function snippetSettings() {
+    const list = h("div", { id: "snippet-list" }, loadingNode("Antwoordblokken laden…"));
+    const load = async () => {
+      try {
+        const snippets = await api("/api/snippets");
+        list.replaceChildren(...(snippets.length
+          ? snippets.map((snippet) => snippetEditor(snippet, load))
+          : [h("p", { class: "hint flush", "data-empty": "", text: "Nog geen antwoordblokken." })]));
+      } catch (error) {
+        list.replaceChildren(h("div", { class: "notice warn" }, h("div", { text: `Kon de antwoordblokken niet laden: ${error.message}` })));
+      }
+    };
+    load();
+    const add = h("button", { class: "btn", type: "button" }, svgIcon("plus"), "Antwoordblok toevoegen");
+    add.addEventListener("click", () => {
+      list.querySelector("[data-empty]")?.remove();
+      const editor = snippetEditor({}, load);
+      list.prepend(editor);
+      editor.querySelector("input")?.focus();
+    });
+    return h("div", {}, list, h("div", { class: "actions" }, add));
+  }
+
+  function snippetEditor(snippet, reload) {
+    const isNew = !snippet.id;
+    const titleId = uid("snip-title");
+    const bodyId = uid("snip-body");
+    const legend = h("legend", { text: snippet.title || "Nieuw antwoordblok" });
+    const title = h("input", {
+      id: titleId, class: "input", type: "text", maxlength: String(SNIPPET_TITLE_MAX), autocomplete: "off",
+      value: snippet.title || "", placeholder: "bijvoorbeeld Openingstijden",
+    });
+    const body = h("textarea", { id: bodyId, class: "input", rows: "4", maxlength: String(SNIPPET_BODY_MAX) });
+    body.value = snippet.body || "";
+    // Enter in de titel mag niet het hele instellingenformulier opslaan.
+    title.addEventListener("keydown", (event) => { if (event.key === "Enter") event.preventDefault(); });
+    title.addEventListener("input", () => { legend.textContent = title.value.trim() || "Nieuw antwoordblok"; });
+    const save = h("button", { class: "btn small primary", type: "button", text: isNew ? "Toevoegen" : "Opslaan" });
+    const remove = h("button", { class: "btn small danger", type: "button", text: isNew ? "Annuleren" : "Verwijderen" });
+    const card = h("fieldset", { class: "sub-card", "data-snippet": isNew ? "new" : String(snippet.id) },
+      legend,
+      field(titleId, "Titel", title),
+      field(bodyId, "Tekst", body, null),
+      charCounter(body, SNIPPET_BODY_MAX),
+      h("div", { class: "actions" }, remove, save),
+    );
+    save.addEventListener("click", async () => {
+      const payload = { title: title.value.trim(), body: body.value.trim() };
+      if (!payload.title || !payload.body) { toast("Vul een titel en een tekst in.", true); return; }
+      save.disabled = true;
+      try {
+        await api(isNew ? "/api/snippets" : `/api/snippets/${encodeURIComponent(snippet.id)}`, {
+          method: isNew ? "POST" : "PUT",
+          body: JSON.stringify(payload),
+        });
+        toast(isNew ? "Antwoordblok toegevoegd" : "Antwoordblok opgeslagen");
+        await reload();
+      } catch (error) {
+        toast(error.message, true);
+        save.disabled = false;
+      }
+    });
+    remove.addEventListener("click", async () => {
+      if (isNew) { card.remove(); return; }
+      if (!confirm(`Antwoordblok „${snippet.title}” verwijderen?`)) return;
+      remove.disabled = true;
+      try {
+        await api(`/api/snippets/${encodeURIComponent(snippet.id)}`, { method: "DELETE" });
+        toast("Antwoordblok verwijderd");
+        await reload();
+      } catch (error) {
+        toast(error.message, true);
+        remove.disabled = false;
+      }
+    });
+    return card;
+  }
+
+  /* ---------- onthouden afzenders ---------- */
+
+  function senderRuleSettings() {
+    const box = h("div", { id: "sender-rules" }, loadingNode("Afzenders laden…"));
+    const load = async () => {
+      let rules;
+      try {
+        rules = await api("/api/sender-rules");
+      } catch (error) {
+        box.replaceChildren(h("div", { class: "notice warn", role: "note" }, h("div", { text: error.message })));
+        return;
+      }
+      if (!rules.length) {
+        box.replaceChildren(h("p", { class: "hint flush", text: "Nog geen afzenders onthouden." }));
+        return;
+      }
+      box.replaceChildren(h("ul", { class: "rule-list" }, rules.map((rule) => {
+        const remove = h("button", { class: "btn small danger", type: "button", text: "Verwijderen" });
+        remove.addEventListener("click", async () => {
+          if (!confirm(`De regel voor ${rule.address} verwijderen? Nieuwe berichten worden dan weer door de AI ingedeeld.`)) return;
+          remove.disabled = true;
+          try {
+            await api(`/api/sender-rules/${encodeURIComponent(rule.id)}`, { method: "DELETE" });
+            toast("Afzenderregel verwijderd");
+            await load();
+          } catch (error) {
+            toast(error.message, true);
+            remove.disabled = false;
+          }
+        });
+        const by = [rule.created_by ? `door ${rule.created_by}` : "", rule.created_at ? formatFull(rule.created_at) : ""].filter(Boolean).join(", ");
+        return h("li", { class: "rule-row" },
+          h("div", { class: "grow" },
+            h("strong", { text: rule.address }),
+            by ? h("div", { class: "hint flush", text: `Onthouden ${by}` }) : null,
+          ),
+          intentChip(rule.intent),
+          remove,
+        );
+      })));
+    };
+    load();
+    return box;
+  }
+
+  /* ---------- back-up ---------- */
+
+  function backupControls() {
+    const note = h("div", { class: "notice warn", role: "alert", hidden: true });
+    const button = h("button", { class: "btn icon-btn", type: "button" }, svgIcon("download"), h("span", { text: "Back-up downloaden" }));
+    button.addEventListener("click", () => downloadBackup(button, note));
+    return h("div", {},
+      note,
+      h("div", { class: "actions" },
+        h("span", { class: "hint flush", text: "Alleen voor beheerders." }),
+        h("span", { class: "spacer" }),
+        button),
+    );
+  }
+
+  async function downloadBackup(button, note) {
+    button.disabled = true;
+    note.hidden = true;
+    try {
+      const response = await fetch("/api/backup");
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error((data && typeof data.detail === "string" && data.detail) || "De back-up is mislukt.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const name = match ? match[1] : `werker-backup-${new Date().toISOString().slice(0, 10)}.db`;
+      const url = URL.createObjectURL(blob);
+      const link = h("a", { href: url, download: name, hidden: true });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast("Back-up gedownload");
+    } catch (error) {
+      note.replaceChildren(h("div", { text: error.message }));
+      note.hidden = false;
+      toast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function readSettings() {
@@ -1771,6 +2328,12 @@
       WERKER_CALENDAR_TOKEN: val("s-caltoken"),
       WERKER_OUTLOOK_CLIENT_ID: val("s-olclient"),
       WERKER_OUTLOOK_TOKEN_CACHE: val("s-oltoken"),
+      WERKER_UNDO_SECONDS: val("s-undo") || "0",
+      WERKER_AI_PRICE_INPUT: val("s-aiin").replace(",", "."),
+      WERKER_AI_PRICE_OUTPUT: val("s-aiout").replace(",", "."),
+      WHATSAPP_TEMPLATE_NAME: val("s-watpl"),
+      WHATSAPP_TEMPLATE_LANG: val("s-walang") || "nl",
+      WERKER_SIGNATURES: JSON.stringify(readSignatures()),
     };
     // Geheimen: alleen meesturen als er iets is ingetypt.
     const secrets = {};
@@ -1804,7 +2367,8 @@
       if (password) user.password = password;
       return user;
     }).filter((user) => user.name);
-    return { values, secrets, mailboxes, users };
+    // Zonder teamaccounts (en zonder nieuwe) de lijst niet meesturen: een lege lijst zou "geen beheerder" betekenen.
+    return { values, secrets, mailboxes, users: users.length || state.hadUsers ? users : undefined };
   }
 
   async function saveSettings(event) {
@@ -2353,7 +2917,51 @@
           hint: "De vervaldatum is voorbij en de factuur is nog niet betaald.",
         }),
       ),
+      renderAiReport(d.ai),
     ));
+  }
+
+  function renderAiReport(ai) {
+    if (!ai) return null;
+    const count = (n) => (Number(n) || 0).toLocaleString("nl-NL");
+    const models = Object.entries(ai.per_model || {}).sort((a, b) => (b[1].aanroepen || 0) - (a[1].aanroepen || 0));
+    const hasCost = ai.geschatte_kosten !== null && ai.geschatte_kosten !== undefined;
+    const pricesLink = h("a", {
+      class: "link", href: "#instellingen", text: "Prijzen instellen",
+      onclick: () => { state.settingsFocus = SECTION_IDS.AI; },
+    });
+    const table = models.length
+      ? h("div", { class: "table-wrap" }, h("table", { class: "data" },
+          h("thead", {}, h("tr", {},
+            h("th", { scope: "col", text: "Model" }),
+            h("th", { scope: "col", class: "num", text: "Aanroepen" }),
+            h("th", { scope: "col", class: "num", text: "Invoertokens" }),
+            h("th", { scope: "col", class: "num", text: "Uitvoertokens" }),
+          )),
+          h("tbody", {}, models.map(([model, row]) => h("tr", {},
+            h("td", { text: model }),
+            h("td", { class: "num", text: count(row.aanroepen) }),
+            h("td", { class: "num", text: count(row.invoer_tokens) }),
+            h("td", { class: "num", text: count(row.uitvoer_tokens) }),
+          ))),
+        ))
+      : h("p", { class: "hint flush", text: "Geen AI-aanroepen in deze periode." });
+    return h("section", { class: "mt", "aria-labelledby": "ai-report-title" },
+      h("h2", { class: "section-title", id: "ai-report-title", text: "AI-gebruik" }),
+      h("p", { class: "section-intro", text: "Hoe vaak Werker het taalmodel gebruikte om berichten in te delen en concepten te schrijven." }),
+      h("div", { class: "stat-grid" },
+        statCard("AI-aanroepen", count(ai.aanroepen), {
+          lines: [["Invoertokens", count(ai.invoer_tokens)], ["Uitvoertokens", count(ai.uitvoer_tokens)]],
+        }),
+        h("div", { class: "card" },
+          h("h3", { text: "Geschatte kosten" }),
+          h("div", { class: "stat-value", text: hasCost ? money(ai.geschatte_kosten, "EUR") : "—" }),
+          h("p", { class: "stat-hint", text: hasCost ? (ai.toelichting || "") : "Er zijn nog geen prijzen ingesteld, dus er is geen schatting." }),
+          hasCost ? null : h("p", { class: "stat-hint" }, pricesLink),
+        ),
+      ),
+      h("div", { class: "card mt" }, h("h3", { text: "Per model" }), table),
+    );
   }
 
   /* ---------- klantgegevens exporteren en verwijderen ---------- */
