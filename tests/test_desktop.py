@@ -72,3 +72,84 @@ def test_web_manifest_is_served_for_install(tmp_path):
 
 def test_desktop_module_exposes_entry_point():
     assert callable(desktop.main)
+
+
+def _fake_desktop(tmp_path, monkeypatch, events, thread_alive=False):
+    """Vervang venster, server, runtime en database door neppers, zodat main() zonder GUI draait."""
+    import sys
+    import threading
+    import types
+
+    import werker.runtime
+    import werker.store
+    import werker.web
+
+    monkeypatch.setenv("WERKER_HOME", str(tmp_path))
+    monkeypatch.setenv("WERKER_DB", str(tmp_path / "werker.db"))
+    monkeypatch.setattr(desktop.logging, "basicConfig", lambda **kwargs: None)
+
+    class FakeStore:
+        def __init__(self, path):
+            pass
+
+        def close(self):
+            events.append("store.close")
+
+    class FakeRuntime:
+        def __init__(self, store, home, env):
+            pass
+
+        def reconfigure(self):
+            pass
+
+    class FakeThread:
+        def join(self, timeout=None):
+            assert timeout is not None
+            events.append("thread.join")
+
+        def is_alive(self):
+            return thread_alive
+
+    def fake_run_background(runtime, stop):
+        assert isinstance(stop, threading.Event)
+        events.append("run_background")
+        return FakeThread()
+
+    class FakeServer:
+        url = "http://127.0.0.1:1/"
+
+        def __init__(self, app, port):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            events.append("server.stop")
+
+    webview = types.ModuleType("webview")
+    webview.create_window = lambda *args, **kwargs: None
+    webview.start = lambda: events.append("webview.start")
+    monkeypatch.setitem(sys.modules, "webview", webview)
+    monkeypatch.setattr(werker.store, "Store", FakeStore)
+    monkeypatch.setattr(werker.runtime, "Runtime", FakeRuntime)
+    monkeypatch.setattr(werker.runtime, "run_background", fake_run_background)
+    monkeypatch.setattr(werker.web, "create_app", lambda runtime: object())
+    monkeypatch.setattr(desktop, "LocalServer", FakeServer)
+
+
+def test_main_stops_background_thread_before_closing_store(tmp_path, monkeypatch):
+    events: list[str] = []
+    _fake_desktop(tmp_path, monkeypatch, events)
+
+    assert desktop.main() == 0
+    assert events == ["run_background", "webview.start", "server.stop", "thread.join", "store.close"]
+
+
+def test_main_does_not_close_store_while_background_thread_still_runs(tmp_path, monkeypatch):
+    events: list[str] = []
+    _fake_desktop(tmp_path, monkeypatch, events, thread_alive=True)
+
+    assert desktop.main() == 0
+    assert "thread.join" in events
+    assert "store.close" not in events

@@ -112,6 +112,15 @@ class OutlookConnector:
             raise RuntimeError(f"Het bericht {msg.external_id!r} is in Outlook niet meer terug te vinden; er is niet verstuurd.")
         self._request("POST", f"/me/messages/{quote(graph_id, safe='')}/reply", json={"comment": body})
 
+    def send_new(self, to: str, subject: str, body: str) -> None:
+        """Verstuur een nieuwe mail (geen antwoord op een bericht), bijvoorbeeld een betalingsherinnering."""
+        message = {
+            "subject": subject,
+            "body": {"contentType": "Text", "content": body},
+            "toRecipients": [{"emailAddress": {"address": to}}],
+        }
+        self._request("POST", "/me/sendMail", json={"message": message, "saveToSentItems": True})
+
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token_provider()}"}
 

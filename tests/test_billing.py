@@ -49,12 +49,15 @@ class FakeMailer:
 
     def __init__(self, fail=False):
         self.fail = fail
-        self.sent: list[tuple[Message, str]] = []
+        self.sent: list[tuple[str, str, str]] = []
 
     def send(self, msg, body):
+        raise AssertionError("herinneringen horen als nieuwe mail te gaan, niet als antwoord")
+
+    def send_new(self, to, subject, body):
         if self.fail:
             raise ConnectionError("smtp niet bereikbaar")
-        self.sent.append((msg, body))
+        self.sent.append((to, subject, body))
 
 
 OVERDUE_DAY = datetime(2026, 11, 15, 9, 0, tzinfo=timezone.utc)
@@ -139,8 +142,9 @@ def test_approve_sends_to_the_client_email(env):
 
     service.approve_reminder(row["id"])
 
-    [(msg, body)] = mailer.sent
-    assert msg.sender == "klant@x.nl"
+    [(to, subject, body)] = mailer.sent
+    assert to == "klant@x.nl"
+    assert subject == "Betalingsherinnering factuur 2026-001"
     assert "2026-001" in body
     assert store.get_reminder(row["id"])["status"] == REMINDER_SENT
     assert store.pending_reminders(WAITING_PAYMENT) == []

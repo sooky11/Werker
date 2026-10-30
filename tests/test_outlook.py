@@ -116,6 +116,22 @@ def test_send_posts_reply_with_body_and_bearer_token():
     assert request.headers["Authorization"] == "Bearer tok-send"
 
 
+def test_send_new_posts_a_fresh_mail_via_sendmail():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(202)
+
+    _connector(handler).send_new("klant@x.nl", "Betalingsherinnering factuur 1", "Graag betalen.")
+
+    (request,) = seen
+    assert request.url.path == "/v1.0/me/sendMail"
+    payload = json.loads(request.content)["message"]
+    assert payload["subject"] == "Betalingsherinnering factuur 1"
+    assert payload["toRecipients"] == [{"emailAddress": {"address": "klant@x.nl"}}]
+
+
 def test_send_looks_up_graph_id_when_headers_were_not_stored():
     # De opslag bewaart geen headers: na goedkeuring is alleen de Message-ID nog bekend.
     seen = []

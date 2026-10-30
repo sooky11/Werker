@@ -51,8 +51,11 @@ werker drafts                       # concepten die op goedkeuring wachten
 werker approve 3                    # keur concept 3 goed en verstuur het
 werker approve 3 --text aangepast.txt
 werker reject 3
+werker reset-password anna          # nieuw wachtwoord voor teamaccount anna (minstens 8 tekens)
 werker serve --port 8000            # inbox op http://127.0.0.1:8000 + WhatsApp-webhook
 ```
+
+`sync`, `approve` en `reject` gebruiken dezelfde instellingen als de webpagina: mailboxen, sleutels en instellingen uit het instelscherm (de datamap naast `WERKER_DB`) tellen mee, naast de omgevingsvariabelen.
 
 ## De inbox
 
@@ -77,7 +80,7 @@ De app start ook zonder API-sleutel, zodat je eerst de instellingen kunt invulle
 
 ## Klanten
 
-Berichten worden automatisch aan een klant gekoppeld op basis van het e-mailadres of telefoonnummer. Elke klant heeft een tijdlijn van alles wat er via mail, WhatsApp en iMessage binnenkwam, met de bijbehorende concepten. Een klant hernoem je, voorzie je van notities, of voeg je samen met een andere (bijvoorbeeld als iemand van twee adressen schrijft). Let op: een Nederlands nummer met 06 en een nummer met +31 worden nu als verschillende nummers gezien; voeg die samen als dat nodig is.
+Berichten worden automatisch aan een klant gekoppeld op basis van het e-mailadres of telefoonnummer. Elke klant heeft een tijdlijn van alles wat er via mail, WhatsApp en iMessage binnenkwam, met de bijbehorende concepten. Een klant hernoem je, voorzie je van notities, of voeg je samen met een andere (bijvoorbeeld als iemand van twee adressen schrijft). Een Nederlands nummer in de vorm 06..., +31 6... of 0031 6... wordt als hetzelfde nummer herkend. Dat geldt voor nieuwe berichten; nummers die al bij een klant staan worden niet omgezet, dus voeg dubbele klanten van vóór deze wijziging zo nodig samen.
 
 ## Gerichte aanpassing en inplannen
 
