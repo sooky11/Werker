@@ -75,6 +75,16 @@ def build_reply(msg: Message, body: str, sender: str) -> EmailMessage:
     return reply
 
 
+def build_new_message(to: str, subject: str, body: str, sender: str) -> EmailMessage:
+    """Een nieuwe mail, geen antwoord: geen "Re:" en geen In-Reply-To of References."""
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = parseaddr(to)[1] or to
+    message["Subject"] = subject
+    message.set_content(body)
+    return message
+
+
 class IMAPConnector:
     def __init__(
         self,
@@ -111,7 +121,13 @@ class IMAPConnector:
         return messages
 
     def send(self, msg: Message, body: str) -> None:
-        reply = build_reply(msg, body, self._sender)
+        self._deliver(build_reply(msg, body, self._sender))
+
+    def send_new(self, to: str, subject: str, body: str) -> None:
+        """Verstuur een nieuwe mail (geen antwoord op een bericht), bijvoorbeeld een betalingsherinnering."""
+        self._deliver(build_new_message(to, subject, body, self._sender))
+
+    def _deliver(self, message: EmailMessage) -> None:
         with smtplib.SMTP_SSL(self._smtp_host, self._smtp_port) as smtp:
             smtp.login(self._user, self._password)
-            smtp.send_message(reply)
+            smtp.send_message(message)

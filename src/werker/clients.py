@@ -22,8 +22,20 @@ def normalize(value: str) -> tuple[str, str] | None:
         return ("email", cleaned)
     digits = re.sub(r"\D", "", cleaned)
     if digits:
-        return ("phone", digits)
+        return ("phone", _international(digits))
     return None
+
+
+def _international(digits: str) -> str:
+    """Nederlandse nummers krijgen dezelfde vorm als internationaal: 06..., +31 6... en 0031 6... worden 316...
+
+    Nummers met een andere landcode blijven zoals ze zijn. Al opgeslagen nummers worden niet omgezet.
+    """
+    if digits.startswith("0031"):
+        return digits[2:]
+    if len(digits) == 10 and digits.startswith("0") and not digits.startswith("00"):
+        return "31" + digits[1:]
+    return digits
 
 
 def identifier_for(msg: Message) -> tuple[str, str] | None:

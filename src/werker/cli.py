@@ -163,10 +163,21 @@ def cmd_process_eml(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_sync(settings: Settings, _: argparse.Namespace) -> int:
+def build_runtime(settings: Settings):
+    """De app zoals de webpagina hem draait: met mailboxen, sleutels en instellingen uit het instelscherm."""
+    from werker.runtime import Runtime
+
     store = Store(settings.db_path)
-    pipeline = build_pipeline(settings, store, build_connectors(os.environ))
-    print(f"{pipeline.sync()} nieuwe berichten verwerkt")
+    runtime = Runtime(store, Path(settings.db_path).resolve().parent, os.environ)
+    runtime.reconfigure()
+    return runtime
+
+
+def cmd_sync(settings: Settings, _: argparse.Namespace) -> int:
+    runtime = build_runtime(settings)
+    if not runtime.env().get("ANTHROPIC_API_KEY"):
+        print("Let op: de API-sleutel ontbreekt; berichten worden opgehaald maar niet geclassificeerd.", file=sys.stderr)
+    print(f"{runtime.pipeline.sync()} nieuwe berichten verwerkt")
     return 0
 
 
@@ -212,8 +223,7 @@ def cmd_drafts(settings: Settings, _: argparse.Namespace) -> int:
 
 
 def cmd_approve(settings: Settings, args: argparse.Namespace) -> int:
-    store = Store(settings.db_path)
-    pipeline = build_pipeline(settings, store, build_connectors(os.environ))
+    pipeline = build_runtime(settings).pipeline
     body = Path(args.text).read_text(encoding="utf-8") if args.text else None
     try:
         pipeline.approve(args.draft_id, body=body, force=args.force)
@@ -225,9 +235,43 @@ def cmd_approve(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_reject(settings: Settings, args: argparse.Namespace) -> int:
-    store = Store(settings.db_path)
-    build_pipeline(settings, store, {}).reject(args.draft_id)
+    try:
+        build_runtime(settings).pipeline.reject(args.draft_id)
+    except (LookupError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     print(f"concept {args.draft_id} afgewezen")
+    return 0
+
+
+def cmd_reset_password(settings: Settings, args: argparse.Namespace) -> int:
+    """Zet een nieuw wachtwoord voor een teamaccount, bijvoorbeeld als de enige beheerder het kwijt is."""
+    import getpass
+
+    from werker.auth import MIN_PASSWORD_LENGTH, hash_password, load_accounts, password_secret_key
+    from werker.runtime import Runtime
+
+    name = args.name.strip().lower()
+    store = Store(settings.db_path)
+    try:
+        if not any(account["name"] == name for account in load_accounts(store)):
+            print(f"Gebruiker '{name}' bestaat niet; er is niets gewijzigd.", file=sys.stderr)
+            return 1
+        password = getpass.getpass(f"Nieuw wachtwoord voor {name}: ")
+        if len(password) < MIN_PASSWORD_LENGTH:
+            print(f"Het wachtwoord moet minstens {MIN_PASSWORD_LENGTH} tekens zijn; er is niets gewijzigd.", file=sys.stderr)
+            return 1
+        if getpass.getpass("Herhaal het nieuwe wachtwoord: ") != password:
+            print("De wachtwoorden zijn niet gelijk; er is niets gewijzigd.", file=sys.stderr)
+            return 1
+        runtime = Runtime(store, Path(settings.db_path).resolve().parent, os.environ)
+        with runtime._lock:
+            stored = runtime._read_secrets()
+            stored[password_secret_key(name)] = hash_password(password)
+            runtime._write_secrets(stored)
+    finally:
+        store.close()
+    print(f"Het wachtwoord van {name} is gewijzigd.")
     return 0
 
 
@@ -277,6 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     reject = sub.add_parser("reject", help="Wijs een concept af.")
     reject.add_argument("draft_id", type=int)
 
+    reset = sub.add_parser("reset-password", help="Zet een nieuw wachtwoord voor een teamaccount.")
+    reset.add_argument("name", metavar="naam")
+
     sub.add_parser("outlook-login", help="Log in bij Outlook (Microsoft 365) met een inlogcode.")
     serve = sub.add_parser("serve", help="Start de inbox-webpagina en de WhatsApp-webhook.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -292,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
         "reject": cmd_reject,
         "serve": cmd_serve,
         "outlook-login": cmd_outlook_login,
+        "reset-password": cmd_reset_password,
     }
     args = parser.parse_args(argv)
     return handlers[args.command](Settings.from_env(), args)

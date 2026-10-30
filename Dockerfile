@@ -17,7 +17,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
 COPY prices.example.yaml ./
-RUN pip install ".[gmail]" \
+RUN pip install ".[gmail,outlook]" \
     && rm -rf /app/src /app/build /app/*.egg-info
 
 USER werker

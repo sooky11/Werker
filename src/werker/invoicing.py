@@ -9,7 +9,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from werker.models import Message
 from werker.invoice_formats import document_text, parse_invoice
 from werker.peppol import AccessPoint, InvoiceError, parse_bank_csv, parse_ubl, remove_from_map, safe_filename, write_to_map
 from werker.prices import find_amounts
@@ -332,18 +331,9 @@ class Invoicing:
             self._store.update_reminder(reminder_id, status=REMINDER_WAITING, recipient=recipient, body=text, last_error=reason)
             raise ReminderSendError(reason)
         self._store.update_reminder(reminder_id, status=REMINDER_WAITING, recipient=recipient, body=text)
-        # Hetzelfde bericht-vorm als bij een binnenkomende mail, zodat de bestaande mail-connector het kan versturen.
-        message = Message(
-            channel="factuur",
-            external_id=f"herinnering-{reminder_id}",
-            thread_id=f"herinnering-{reminder_id}",
-            sender=recipient,
-            subject=row["subject"],
-            body=text,
-            received_at=now,
-        )
         try:
-            self.mailer.send(message, text)
+            # Een herinnering is een nieuwe mail, geen antwoord: dus geen "Re:" en geen verwijzing naar een eerder bericht.
+            self.mailer.send_new(recipient, row["subject"], text)
         except Exception as exc:
             self._store.update_reminder(reminder_id, last_error=str(exc))
             self._store.audit(None, "herinnering mislukt", f"{invoice['number']}: {exc}")

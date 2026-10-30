@@ -43,6 +43,9 @@ class FakeGmail:
     def modify(self, userId, id, body):
         return {"id": id}
 
+    def send_message(self, userId, body):
+        return {"id": "sent-1"}
+
 
 class _User:
     def __init__(self, fake):
@@ -55,7 +58,7 @@ class _User:
         return _Resource(
             self._fake,
             "messages",
-            {"list": "list_messages", "get": "get_message", "modify": "modify"},
+            {"list": "list_messages", "get": "get_message", "modify": "modify", "send": "send_message"},
         )
 
 
@@ -226,3 +229,16 @@ def test_labeler_failure_does_not_block_processing(tmp_path):
     row = store.get_message_row(store.find_message_id("mail:gmail", "<6@x>"))
     assert row["intent"] == Intent.PRIJSVRAAG.value
     assert row["status"] == "concept klaar"
+
+
+def test_send_new_sends_a_fresh_mail_without_reply_headers():
+    from email import message_from_bytes
+
+    fake = FakeGmail()
+    GmailConnector(fake, sender_address="info@salon.nl").send_new("klant@x.nl", "Betalingsherinnering factuur 1", "Graag betalen.")
+
+    [call] = _calls(fake, "messages.send")
+    sent = message_from_bytes(base64.urlsafe_b64decode(call["body"]["raw"]))
+    assert sent["Subject"] == "Betalingsherinnering factuur 1"
+    assert sent["To"] == "klant@x.nl"
+    assert sent["In-Reply-To"] is None

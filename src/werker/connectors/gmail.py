@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import base64
 from dataclasses import replace
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Callable
 
-from werker.connectors.mail import build_reply, parse_email
+from werker.connectors.mail import build_new_message, build_reply, parse_email
 from werker.models import Intent, Message
 
 SCOPES = [
@@ -76,8 +77,14 @@ class GmailConnector:
         return messages
 
     def send(self, msg: Message, body: str) -> None:
-        reply = build_reply(msg, body, self._sender)
-        encoded = base64.urlsafe_b64encode(reply.as_bytes()).decode("ascii")
+        self._deliver(build_reply(msg, body, self._sender))
+
+    def send_new(self, to: str, subject: str, body: str) -> None:
+        """Verstuur een nieuwe mail (geen antwoord op een bericht), bijvoorbeeld een betalingsherinnering."""
+        self._deliver(build_new_message(to, subject, body, self._sender))
+
+    def _deliver(self, message: EmailMessage) -> None:
+        encoded = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
         self._service.users().messages().send(userId="me", body={"raw": encoded}).execute()
 
     def label(self, msg: Message, label_name: str) -> None:

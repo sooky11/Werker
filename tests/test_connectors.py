@@ -1,12 +1,11 @@
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
 
 import httpx
 import pytest
 
-from werker.connectors.mail import build_reply, parse_email
+from werker.connectors.mail import IMAPConnector, build_new_message, build_reply, parse_email
 from werker.connectors.whatsapp import WhatsAppConnector, WindowClosedError, parse_webhook, verify_signature
 from werker.models import Message
 
@@ -53,6 +52,45 @@ def test_build_reply_threads_correctly():
     assert reply["Subject"] == "Re: Wat kost knippen?"
     assert reply["In-Reply-To"] == "<abc@example.com>"
     assert "<abc@example.com>" in reply["References"]
+
+
+def test_build_new_message_is_not_a_reply():
+    message = build_new_message("Klant <klant@x.nl>", "Betalingsherinnering factuur 2026-001", "Graag betalen.", sender="info@salon.nl")
+    assert message["To"] == "klant@x.nl"
+    assert message["From"] == "info@salon.nl"
+    assert message["Subject"] == "Betalingsherinnering factuur 2026-001"
+    assert message["In-Reply-To"] is None
+    assert message["References"] is None
+    assert message.get_content().strip() == "Graag betalen."
+
+
+def test_imap_send_new_sends_a_fresh_mail(monkeypatch):
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, host, port):
+            self.host = host
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def login(self, user, password):
+            pass
+
+        def send_message(self, message):
+            sent.append(message)
+
+    monkeypatch.setattr("werker.connectors.mail.smtplib.SMTP_SSL", FakeSMTP)
+    connector = IMAPConnector("imap.x", "u", "pw", "smtp.x", "info@salon.nl")
+    connector.send_new("klant@x.nl", "Betalingsherinnering factuur 1", "Graag betalen.")
+
+    [message] = sent
+    assert message["Subject"] == "Betalingsherinnering factuur 1"
+    assert not message["Subject"].lower().startswith("re:")
+    assert message["In-Reply-To"] is None
 
 
 def test_verify_signature_accepts_valid_and_rejects_tampered():

@@ -18,6 +18,8 @@ import uvicorn
 log = logging.getLogger(__name__)
 
 WINDOW_TITLE = "Werker"
+# Zo lang wachten we bij afsluiten tot de achtergrondtaak (bijvoorbeeld een lopende sync) klaar is.
+BACKGROUND_JOIN_SECONDS = 15
 
 
 def data_dir() -> Path:
@@ -106,7 +108,7 @@ def main() -> int:
     app = create_app(runtime)
 
     stop = threading.Event()
-    run_background(runtime, stop)
+    background = run_background(runtime, stop)
     server = LocalServer(app, free_port())
     server.start()
     try:
@@ -115,7 +117,12 @@ def main() -> int:
     finally:
         stop.set()
         server.stop()
-        store.close()
+        # Eerst de achtergrondtaak laten stoppen; anders kan die de database nog gebruiken terwijl we hem sluiten.
+        background.join(timeout=BACKGROUND_JOIN_SECONDS)
+        if background.is_alive():
+            log.warning("achtergrondtaak stopte niet op tijd; de database wordt niet expliciet gesloten")
+        else:
+            store.close()
     return 0
 
 
