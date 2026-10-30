@@ -11,9 +11,11 @@ from email.message import EmailMessage
 from email.parser import BytesParser
 from email.utils import parseaddr, parsedate_to_datetime
 
-from werker.models import Message
+from werker.models import Attachment, Message
 
 CHANNEL = "mail"
+# Samen mogen de bijlagen van één bericht niet groter zijn dan dit; de rest wordt als "te groot" genoteerd.
+MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
 _QUOTE_START = re.compile(r"^(Op .+ schreef.*|On .+ wrote.*|-{2,} ?Original Message ?-{2,})$")
 
 
@@ -31,7 +33,31 @@ def parse_email(raw: bytes, channel: str = CHANNEL) -> Message:
         body=_strip_quotes(_body_text(parsed)),
         received_at=_received_at(parsed["Date"]),
         headers=headers,
+        attachments=_attachments(parsed),
     )
+
+
+def _attachments(parsed: EmailMessage) -> tuple[Attachment, ...]:
+    found: list[tuple[str, str, bytes]] = []
+    for part in parsed.iter_attachments():
+        if part.is_multipart():
+            continue
+        data = part.get_payload(decode=True) or b""
+        found.append((part.get_filename() or "", part.get_content_type(), data))
+    return limit_attachments(found)
+
+
+def limit_attachments(items: list[tuple[str, str, bytes]]) -> tuple[Attachment, ...]:
+    """Houd bijlagen (naam, type, inhoud) tot ze samen MAX_ATTACHMENT_BYTES zijn; wat niet past is "te groot"."""
+    kept: list[Attachment] = []
+    used = 0
+    for filename, content_type, data in items:
+        if used + len(data) > MAX_ATTACHMENT_BYTES:
+            kept.append(Attachment(filename, content_type, b"", len(data), True))
+        else:
+            used += len(data)
+            kept.append(Attachment(filename, content_type, data, len(data), False))
+    return tuple(kept)
 
 
 def _body_text(parsed: EmailMessage) -> str:

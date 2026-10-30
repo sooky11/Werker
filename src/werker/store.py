@@ -130,9 +130,11 @@ from werker.store_privacy import PrivacyStoreMixin  # noqa: E402
 from werker.store_billing import BillingStoreMixin  # noqa: E402
 from werker.store_reports import ReportsStoreMixin  # noqa: E402
 from werker.store_rules import RulesStoreMixin  # noqa: E402
+from werker.store_attachments import AttachmentsStoreMixin  # noqa: E402
+from werker.store_snippets import SnippetsStoreMixin  # noqa: E402
 
 
-class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreMixin):
+class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreMixin, AttachmentsStoreMixin, SnippetsStoreMixin):
     def __init__(self, path: str):
         self._lock = threading.RLock()
         self._db = sqlite3.connect(path, check_same_thread=False)
@@ -142,6 +144,8 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreM
         self._ensure_privacy_schema()
         self._ensure_billing_schema()
         self._ensure_rules_schema()
+        self._ensure_attachments_schema()
+        self._ensure_snippets_schema()
 
     def close(self) -> None:
         self._db.close()
@@ -191,6 +195,7 @@ class Store(PrivacyStoreMixin, ReportsStoreMixin, BillingStoreMixin, RulesStoreM
                     client_id,
                 ),
             )
+        self._run_message_hooks(cursor.lastrowid, msg)
         return cursor.lastrowid
 
     @_locked

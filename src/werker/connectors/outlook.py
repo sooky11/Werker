@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import html
+import logging
 import os
 import re
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -10,13 +14,16 @@ from urllib.parse import quote
 
 import httpx
 
-from werker.connectors.mail import _strip_quotes
-from werker.models import Message
+from werker.connectors.mail import MAX_ATTACHMENT_BYTES, _strip_quotes
+from werker.models import Attachment, Message
+
+log = logging.getLogger(__name__)
 
 AUTHORITY = "https://login.microsoftonline.com/common"
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 SCOPES = ["Mail.Read", "Mail.Send", "offline_access"]
-INBOX_FIELDS = "id,internetMessageId,conversationId,subject,from,receivedDateTime,body"
+INBOX_FIELDS = "id,internetMessageId,conversationId,subject,from,receivedDateTime,body,hasAttachments"
+FILE_ATTACHMENT = "#microsoft.graph.fileAttachment"
 
 
 def _load_cache(path: Path) -> Any:
@@ -104,7 +111,43 @@ class OutlookConnector:
     def fetch_new(self) -> list[Message]:
         params = {"$filter": "isRead eq false", "$top": "25", "$select": INBOX_FIELDS}
         data = self._request("GET", "/me/mailFolders/inbox/messages", params=params)
-        return [self._to_message(item) for item in data.get("value", [])]
+        messages = []
+        for item in data.get("value", []):
+            msg = self._to_message(item)
+            if item.get("hasAttachments"):
+                msg = replace(msg, attachments=self._attachments(item["id"]))
+            messages.append(msg)
+        return messages
+
+    def _attachments(self, graph_id: str) -> tuple[Attachment, ...]:
+        """Bestandsbijlagen via Graph. Lukt dat niet, dan komt het bericht toch binnen, zonder bijlagen."""
+        try:
+            data = self._request("GET", f"/me/messages/{quote(graph_id, safe='')}/attachments")
+        except (RuntimeError, httpx.HTTPError) as exc:
+            log.warning("bijlagen ophalen mislukt voor %s: %s", graph_id, exc)
+            return ()
+        kept: list[Attachment] = []
+        used = 0
+        for item in data.get("value", []):
+            if item.get("@odata.type") != FILE_ATTACHMENT or item.get("isInline"):
+                continue
+            name = item.get("name") or ""
+            content_type = item.get("contentType") or "application/octet-stream"
+            size = int(item.get("size") or 0)
+            if used + size > MAX_ATTACHMENT_BYTES:
+                kept.append(Attachment(name, content_type, b"", size, True))
+                continue
+            try:
+                content = base64.b64decode(item.get("contentBytes") or "", validate=True)
+            except (binascii.Error, ValueError):
+                log.warning("bijlage %r van %s is onleesbaar en overgeslagen", name, graph_id)
+                continue
+            if used + len(content) > MAX_ATTACHMENT_BYTES:
+                kept.append(Attachment(name, content_type, b"", len(content), True))
+                continue
+            used += len(content)
+            kept.append(Attachment(name, content_type, content, len(content), False))
+        return tuple(kept)
 
     def send(self, msg: Message, body: str) -> None:
         graph_id = msg.headers.get("x-graph-id") or self._find_graph_id(msg.external_id)
