@@ -138,7 +138,10 @@ class Pipeline:
             return Decision(Action.SKIP, rule.reason)
 
         if rule.intent is not None:
-            cls = Classification(rule.intent, "laag", "", 1.0, rule.reason)
+            # Een onthouden afzenderregel zegt iets over de afzender, niet over dit bericht: zekerheid 0,
+            # zodat het beleid er nooit automatisch op verstuurt.
+            confidence = 0.0 if rule.remembered else 1.0
+            cls = Classification(rule.intent, "laag", "", confidence, rule.reason)
         else:
             cls = self._classifier.classify(msg)
         self._store.set_classification(message_id, cls)

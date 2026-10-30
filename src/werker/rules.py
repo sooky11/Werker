@@ -18,6 +18,8 @@ class RuleResult:
     skip: bool = False
     intent: Intent | None = None
     reason: str = ""
+    # Een door een mens onthouden categorie: wel indelen, maar nooit automatisch beantwoorden.
+    remembered: bool = False
 
 
 def sender_address(sender: str) -> str:
@@ -36,7 +38,7 @@ def apply_rules(
     remembered = sender_intent(address) if sender_intent is not None and address else None
     if remembered:
         try:
-            return RuleResult(intent=Intent(remembered), reason="onthouden categorie voor deze afzender")
+            return RuleResult(intent=Intent(remembered), reason="onthouden categorie voor deze afzender", remembered=True)
         except ValueError:
             pass  # onbekende categorie in de opslag: gewoon laten classificeren
     if "list-unsubscribe" in msg.headers:

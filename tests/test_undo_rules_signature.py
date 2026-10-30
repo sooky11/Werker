@@ -245,3 +245,46 @@ def test_signatures_setting_is_validated_and_reaches_the_pipeline(tmp_path):
     runtime.update(values={"WERKER_SIGNATURES": '{"mail:zakelijk": "Groet,\\nSalon X"}'})
     assert runtime.pipeline.signatures == {"mail:zakelijk": "Groet,\nSalon X"}
     assert parse_signatures("{kapot") == {}
+
+
+def test_remembered_sender_rule_never_autosends(tmp_path):
+    from datetime import datetime, timezone
+
+    from werker.models import Draft, Intent, Message
+    from werker.pipeline import Pipeline
+    from werker.policy import Action, PolicyConfig
+    from werker.prices import PriceBook
+    from werker.rules import RuleConfig
+    from werker.store import Store
+
+    store = Store(str(tmp_path / "r.db"))
+    store.set_sender_rule("klant@voorbeeld.nl", "prijsvraag", "test")
+
+    class NoClassifier:
+        def classify(self, msg):
+            raise AssertionError("de onthouden regel moet het model overslaan")
+
+    class Replier:
+        def draft(self, msg, cls, prices, slots=None):
+            return Draft("Prijs is € 25,00.", False, "")
+
+    class Connector:
+        name = "mail"
+        sent = []
+
+        def fetch_new(self):
+            return []
+
+        def send(self, msg, body):
+            self.sent.append(body)
+
+    connector = Connector()
+    prices = PriceBook(lambda: [])
+    pipeline = Pipeline(store, NoClassifier(), Replier(), prices,
+                        PolicyConfig(autosend_enabled=True, autosend_intents=frozenset({Intent.PRIJSVRAAG})),
+                        RuleConfig(), {"mail": connector})
+    msg = Message("mail", "<r@x>", "<r@x>", "klant@voorbeeld.nl", "Vraag", "Wat kost het?", datetime.now(timezone.utc))
+    decision = pipeline.process(msg)
+    assert decision.action is Action.DRAFT
+    assert connector.sent == []
+    store.close()
