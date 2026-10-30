@@ -360,3 +360,45 @@ def test_runtime_hands_all_mailboxes_to_invoicing(tmp_path):
     assert runtime.invoicing.mailer is runtime.invoicing.mail_connectors["mail:kantoor"]
     db.close()
 
+
+
+def test_template_only_keeps_draft_open_instead_of_marking_sent(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from werker.connectors.whatsapp import TEMPLATE_SENT
+    from werker.models import Classification, Draft, Intent, Message
+    from werker.pipeline import Pipeline
+    from werker.policy import PolicyConfig
+    from werker.prices import PriceBook
+    from werker.rules import RuleConfig
+    from werker.store import WAITING, Store
+
+    store = Store(str(tmp_path / "t.db"))
+
+    class Classifier:
+        def classify(self, msg):
+            return Classification(Intent.OVERIG, "normaal", "nl", 0.9, "vraag")
+
+    class Replier:
+        def draft(self, msg, cls, prices, slots=None):
+            return Draft("Dank voor je bericht.", False, "")
+
+    class TemplateConnector:
+        name = "whatsapp"
+
+        def fetch_new(self):
+            return []
+
+        def send(self, msg, body):
+            return TEMPLATE_SENT
+
+    pipeline = Pipeline(store, Classifier(), Replier(), PriceBook(lambda: []), PolicyConfig(), RuleConfig(),
+                        {"whatsapp": TemplateConnector()})
+    old = datetime.now(timezone.utc) - timedelta(days=2)
+    pipeline.process(Message("whatsapp", "w9", "316", "Sara <316>", "", "Hoi", old))
+    draft_id = store.pending_drafts()[0]["id"]
+    pipeline.approve(draft_id)
+    assert store.get_draft(draft_id)["status"] == WAITING
+    row = store.get_message_row(store.find_message_id("whatsapp", "w9"))
+    assert row["status"] == "wacht op klant"
+    store.close()

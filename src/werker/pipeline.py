@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from werker.calendar_providers import CalendarProvider, NoCalendar
 from werker.clients import resolve_client
+from werker.connectors.whatsapp import TEMPLATE_SENT
 from werker.connectors.base import Connector
 from werker.models import Classification, Draft, Intent, Message
 from werker.policy import Action, Decision, PolicyConfig, decide
@@ -413,12 +414,19 @@ class Pipeline:
             if connector is None:
                 raise RuntimeError(f"geen connector voor kanaal {msg.channel!r}")
             body = self._with_signature(msg.channel, body)
-            connector.send(msg, body)
+            outcome = connector.send(msg, body)
         except Exception as exc:
             log.exception("verzenden mislukt voor bericht %s", message_id)
             self._store.audit(message_id, "verzending mislukt", str(exc))
             self._store.set_status(message_id, "verzending mislukt")
             raise SendError(f"verzenden mislukt: {exc}") from exc
+        if outcome == TEMPLATE_SENT:
+            # Alleen het WhatsApp-sjabloon is aangekomen, niet de tekst: het concept blijft staan
+            # tot de klant reageert, zodat je het daarna alsnog kunt versturen.
+            self._store.set_draft_status(draft_id, WAITING, body=body)
+            self._store.set_status(message_id, "wacht op klant")
+            self._store.audit(message_id, "sjabloon verstuurd", "de tekst volgt zodra de klant reageert")
+            return
         self._store.set_draft_status(draft_id, "verzonden", body=body)
         self._store.set_status(message_id, "beantwoord")
         self._store.audit(message_id, "verzonden", how)
