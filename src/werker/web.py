@@ -21,6 +21,7 @@ from werker.runtime import Runtime
 from werker.store import WAITING, Store
 from werker.web_privacy import privacy_router
 from werker.web_billing import billing_router
+from werker.web_backup import backup_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -472,4 +473,5 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
 
     app.include_router(privacy_router(runtime, ui_auth))
     app.include_router(billing_router(runtime, ui_auth))
+    app.include_router(backup_router(runtime, ui_auth))
     return app

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from werker.llm import render_message, tool_input
+from werker.llm import UsageCallback, render_message, report_usage, tool_input
 from werker.models import Classification, Draft, Message
 from werker.prices import Price, format_price_list
 
@@ -131,9 +131,10 @@ def apply_edits(text: str, edits: list[dict[str, str]]) -> str:
 
 
 class Replier:
-    def __init__(self, client: Any, model: str = REPLY_MODEL):
+    def __init__(self, client: Any, model: str = REPLY_MODEL, on_usage: UsageCallback | None = None):
         self._client = client
         self._model = model
+        self._on_usage = on_usage
 
     def draft(
         self,
@@ -156,6 +157,7 @@ class Replier:
             tool_choice={"type": "tool", "name": TOOL_NAME},
             messages=[{"role": "user", "content": f"Intentie: {cls.intent.value}\n\n{render_message(msg)}"}],
         )
+        report_usage(self._on_usage, "concept", self._model, response)
         data = tool_input(response, TOOL_NAME)
         return Draft(
             body=data["body"],
@@ -177,6 +179,7 @@ class Replier:
                 }
             ],
         )
+        report_usage(self._on_usage, "aanpassen", self._model, response)
         data = tool_input(response, REVISE_TOOL_NAME)
         body = apply_edits(current, data["edits"])
         return Revision(

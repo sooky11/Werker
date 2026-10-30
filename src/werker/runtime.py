@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import logging
 import os
 import re
@@ -26,6 +27,7 @@ from werker.auth import USERS_KEY, clean_accounts, load_accounts
 from werker.classify import Classifier
 from werker.clients import migrate_stored_phones
 from werker.connectors.peppol import build_access_point
+from werker.connectors.whatsapp import TEMPLATE_NOTICE
 from werker.cli import build_connectors, price_loader
 from werker.config import Settings
 from werker import privacy
@@ -59,6 +61,10 @@ SETTING_KEYS = (
     "WERKER_CALENDAR_TOKEN",
     "WERKER_OUTLOOK_CLIENT_ID",
     "WERKER_OUTLOOK_TOKEN_CACHE",
+    "WERKER_AI_PRICE_INPUT",
+    "WERKER_AI_PRICE_OUTPUT",
+    "WHATSAPP_TEMPLATE_NAME",
+    "WHATSAPP_TEMPLATE_LANG",
 )
 DEFAULTS = {
     "WERKER_AUTOSEND": "false",
@@ -80,6 +86,10 @@ DEFAULTS = {
     "WERKER_CALENDAR_TOKEN": "",
     "WERKER_OUTLOOK_CLIENT_ID": "",
     "WERKER_OUTLOOK_TOKEN_CACHE": "",
+    "WERKER_AI_PRICE_INPUT": "",
+    "WERKER_AI_PRICE_OUTPUT": "",
+    "WHATSAPP_TEMPLATE_NAME": "",
+    "WHATSAPP_TEMPLATE_LANG": "nl",
 }
 MAILBOX_FIELDS = ("name", "host", "user", "smtp_host", "sender")
 
@@ -104,6 +114,15 @@ class Unconfigured:
         raise RuntimeError(self._reason)
 
 
+def _optional_price(value: Any) -> bool:
+    """Leeg (niet ingesteld) of een getal van nul of meer: euro per miljoen tokens."""
+    text = str(value).strip()
+    if not text:
+        return True
+    number = float(text)
+    return math.isfinite(number) and number >= 0
+
+
 def _validate_values(values: Mapping[str, Any]) -> None:
     """Controleer getallen en de aan/uit-schakelaars voordat ze worden opgeslagen."""
     checks = {
@@ -114,6 +133,10 @@ def _validate_values(values: Mapping[str, Any]) -> None:
         "WERKER_IMESSAGE": lambda v: str(v) in ("true", "false"),
         "WERKER_THEME": lambda v: str(v) in ("editorieel", "donker", "zacht"),
         "WERKER_RETENTION_DAYS": lambda v: re.fullmatch(r"\d+", str(v).strip()) is not None,
+        "WERKER_AI_PRICE_INPUT": _optional_price,
+        "WERKER_AI_PRICE_OUTPUT": _optional_price,
+        "WHATSAPP_TEMPLATE_NAME": lambda v: re.fullmatch(r"[a-z0-9_]*", str(v).strip()) is not None,
+        "WHATSAPP_TEMPLATE_LANG": lambda v: re.fullmatch(r"[a-z]{2,3}(_[A-Z]{2})?", str(v).strip()) is not None,
     }
     for key, value in values.items():
         check = checks.get(key)
@@ -296,12 +319,16 @@ class Runtime:
         api_key = env.get("ANTHROPIC_API_KEY", "")
         if api_key:
             client = anthropic.Anthropic(api_key=api_key)
-            classifier, replier = Classifier(client), Replier(client)
+            usage = self.store.record_ai_usage
+            classifier, replier = Classifier(client, on_usage=usage), Replier(client, on_usage=usage)
         else:
             reason = "De API-sleutel ontbreekt. Vul die in bij Instellingen."
             classifier, replier = Unconfigured(reason), Unconfigured(reason)
         prices = PriceBook(price_loader(settings))
         connectors = build_connectors(env)
+        whatsapp = connectors.get("whatsapp")
+        if whatsapp is not None and hasattr(whatsapp, "on_template"):
+            whatsapp.on_template = self._template_sent
         # Alleen Gmail krijgt labels; zonder Gmail-koppeling wordt het label-stapje uitgeschakeld.
         gmail = connectors.get("mail:gmail")
         labeler = intent_labeler(gmail) if gmail is not None else _no_labeler
@@ -317,10 +344,16 @@ class Runtime:
             "labeler": labeler,
         }
 
+    def _template_sent(self, msg, template: str) -> None:
+        """Buiten het WhatsApp-venster ging het sjabloon in plaats van de tekst; leg dat vast voor de inbox."""
+        message_id = self.store.find_message_id(msg.channel, msg.external_id)
+        self.store.audit(message_id, "sjabloon verstuurd", f"{TEMPLATE_NOTICE} (sjabloon '{template}')")
+
     def reconfigure(self) -> None:
         components = self._components()
         self.invoicing.access_point = build_access_point(self.env())
         self.invoicing.mailer = next((c for n, c in components["connectors"].items() if n.startswith("mail:")), None)
+        self.invoicing.mail_connectors = {n: c for n, c in components["connectors"].items() if n.startswith("mail:")}
         if self.pipeline is None:
             self.pipeline = Pipeline(self.store, **components)
         else:
