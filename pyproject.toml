@@ -5,6 +5,7 @@ description = "Sorteert zakelijke mail en berichten en stelt antwoorden voor, me
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.40",
+    "defusedxml>=0.7",
     "fastapi>=0.110",
     "httpx>=0.27",
     "pypdf>=4",

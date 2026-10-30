@@ -9,7 +9,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from werker import privacy
+from werker.auth import require_beheerder
 from werker.runtime import Runtime
+
+
+_ONLY_BEHEERDER = "alleen een beheerder kan klantgegevens exporteren, verwijderen of het privacylogboek inzien"
 
 
 class EraseIn(BaseModel):
@@ -17,10 +21,12 @@ class EraseIn(BaseModel):
 
 
 def privacy_router(runtime: Runtime, ui_auth: Any) -> APIRouter:
+    """ui_auth is de Depends(...) uit web.py; die levert de gebruikersnaam voor de rolcontrole."""
     router = APIRouter()
 
     @router.get("/api/clients/{client_id}/export", dependencies=[ui_auth])
-    def export(client_id: int) -> JSONResponse:
+    def export(client_id: int, user: str | None = ui_auth) -> JSONResponse:
+        require_beheerder(runtime, user, _ONLY_BEHEERDER)
         try:
             data = privacy.export_client(runtime.store, client_id)
         except LookupError as exc:
@@ -31,7 +37,10 @@ def privacy_router(runtime: Runtime, ui_auth: Any) -> APIRouter:
         )
 
     @router.delete("/api/clients/{client_id}", dependencies=[ui_auth])
-    def erase(client_id: int, payload: EraseIn = Body(default=EraseIn())) -> dict[str, Any]:
+    def erase(
+        client_id: int, payload: EraseIn = Body(default=EraseIn()), user: str | None = ui_auth
+    ) -> dict[str, Any]:
+        require_beheerder(runtime, user, _ONLY_BEHEERDER)
         client = runtime.store.get_client(client_id)
         if client is None:
             raise HTTPException(status_code=404, detail="klant bestaat niet")
@@ -48,7 +57,8 @@ def privacy_router(runtime: Runtime, ui_auth: Any) -> APIRouter:
         return {"status": "verwijderd", "counts": counts}
 
     @router.get("/api/privacy/log", dependencies=[ui_auth])
-    def log() -> list[dict[str, Any]]:
+    def log(user: str | None = ui_auth) -> list[dict[str, Any]]:
+        require_beheerder(runtime, user, _ONLY_BEHEERDER)
         return runtime.store.privacy_log_entries()
 
     return router

@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import io
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # alleen voor het Element-type en ParseError; parsen gaat via peppol.parse_xml
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from werker.peppol import CENT, InvoiceError, ParsedInvoice, parse_ubl
+from werker.peppol import CENT, InvoiceError, ParsedInvoice, parse_ubl, parse_xml
 
 UBL_INVOICE = "{urn:oasis:names:specification:ubl:schema:xsd:Invoice-2}Invoice"
 CII_NS = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
@@ -340,7 +340,7 @@ def _embedded_xml(data: bytes) -> bytes | None:
 
 def _parse_xml(data: bytes, filename: str) -> ParsedInvoice:
     try:
-        root = ET.fromstring(data)
+        root = parse_xml(data)
     except ET.ParseError:
         raise _unknown(filename)
     if root.tag == UBL_INVOICE:

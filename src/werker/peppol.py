@@ -10,11 +10,14 @@ from __future__ import annotations
 import csv
 import io
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # alleen voor het Element-type en find(); parsen gaat via defusedxml
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Protocol
+
+from defusedxml import DefusedXmlException
+from defusedxml import ElementTree as SafeET
 
 NS = {
     "inv": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
@@ -29,6 +32,19 @@ class InvoiceError(ValueError):
     def __init__(self, problems: list[str]):
         super().__init__("; ".join(problems))
         self.problems = problems
+
+
+def parse_xml(data: bytes | str) -> ET.Element:
+    """Parse XML van buiten zonder entiteiten, DTD of externe verwijzingen (tegen billion laughs en XXE).
+
+    Zo'n constructie geeft een InvoiceError; gewone syntaxfouten blijven een ET.ParseError.
+    """
+    try:
+        return SafeET.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
+    except DefusedXmlException:
+        raise InvoiceError(
+            ["de XML bevat een DTD, entiteiten of externe verwijzingen; dat is om veiligheidsredenen niet toegestaan"]
+        ) from None
 
 
 class AccessPoint(Protocol):
@@ -73,7 +89,7 @@ def _amount(root: ET.Element, path: str, problems: list[str], label: str) -> Dec
 def parse_ubl(xml_bytes: bytes) -> ParsedInvoice:
     """Lees een UBL-factuur en controleer de verplichte velden. Fouten geven een InvoiceError met alle problemen."""
     try:
-        root = ET.fromstring(xml_bytes)
+        root = parse_xml(xml_bytes)
     except ET.ParseError as exc:
         raise InvoiceError([f"geen geldige XML: {exc}"])
     if root.tag != f"{{{NS['inv']}}}Invoice":

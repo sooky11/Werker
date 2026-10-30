@@ -16,10 +16,12 @@ import os
 import re
 import secrets
 import threading
+import time
+from collections import OrderedDict
 from functools import lru_cache
 from typing import Any, Callable
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 ROLES = ("beheerder", "medewerker")
@@ -34,6 +36,74 @@ _CACHE_KEY = secrets.token_bytes(32)
 _CACHE_LIMIT = 512
 _verified: set[str] = set()
 _verified_lock = threading.Lock()
+
+
+# Na MAX_FAILURES mislukte pogingen binnen FAILURE_WINDOW seconden weigert de app verdere pogingen van hetzelfde IP-adres.
+MAX_FAILURES = 5
+FAILURE_WINDOW = 600
+_THROTTLE_LIMIT = 10_000
+
+
+class LoginThrottle:
+    """Telt mislukte inlogpogingen per IP-adres, in het geheugen en met een vaste bovengrens aan adressen."""
+
+    def __init__(
+        self,
+        max_failures: int = MAX_FAILURES,
+        window: float = FAILURE_WINDOW,
+        limit: int = _THROTTLE_LIMIT,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        self.max_failures = max_failures
+        self.window = window
+        self.limit = limit
+        self.clock = clock
+        self._failures: OrderedDict[str, list[float]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def _recent(self, ip: str, now: float) -> list[float]:
+        times = [t for t in self._failures.get(ip, ()) if now - t < self.window]
+        if times:
+            self._failures[ip] = times
+        else:
+            self._failures.pop(ip, None)
+        return times
+
+    def retry_after(self, ip: str) -> int:
+        """Seconden tot dit adres weer mag proberen; 0 als het nu mag."""
+        with self._lock:
+            now = self.clock()
+            times = self._recent(ip, now)
+            if len(times) < self.max_failures:
+                return 0
+            # Het venster schuift: zodra de oudste van de laatste pogingen verloopt, mag er weer één bij.
+            return max(1, int(times[-self.max_failures] + self.window - now + 0.999))
+
+    def record_failure(self, ip: str) -> None:
+        with self._lock:
+            now = self.clock()
+            times = self._recent(ip, now)
+            times.append(now)
+            self._failures[ip] = times
+            self._failures.move_to_end(ip)
+            if len(self._failures) > self.limit:
+                for key in [k for k, v in self._failures.items() if now - v[-1] >= self.window]:
+                    del self._failures[key]
+                while len(self._failures) > self.limit:
+                    self._failures.popitem(last=False)
+
+
+def _client_ip(request: Request) -> str:
+    # Bewust niet X-Forwarded-For: die kan elke bezoeker zelf invullen.
+    return request.client.host if request.client else "onbekend"
+
+
+def _too_many(seconds: int) -> HTTPException:
+    return HTTPException(
+        status_code=429,
+        detail=f"te veel mislukte inlogpogingen, probeer het over {max(1, (seconds + 59) // 60)} minuten opnieuw",
+        headers={"Retry-After": str(seconds)},
+    )
 
 
 def hash_password(password: str) -> str:
@@ -148,28 +218,46 @@ def _unauthorized() -> HTTPException:
     return HTTPException(status_code=401, headers={"WWW-Authenticate": "Basic"})
 
 
-def make_auth(runtime: Any, legacy_password: str) -> Callable[..., str | None]:
-    """FastAPI-afhankelijkheid die de ingelogde gebruikersnaam teruggeeft (None zonder accounts)."""
-    basic = HTTPBasic(auto_error=False)
+def make_auth(
+    runtime: Any, legacy_password: str, throttle: LoginThrottle | None = None
+) -> Callable[..., str | None]:
+    """FastAPI-afhankelijkheid die de ingelogde gebruikersnaam teruggeeft (None zonder accounts).
 
-    def check(credentials: HTTPBasicCredentials | None = Depends(basic)) -> str | None:
-        if accounts_configured(runtime.store):
+    Na te veel mislukte pogingen vanaf één IP-adres volgt een 429 met Retry-After, ook bij het juiste wachtwoord.
+    """
+    basic = HTTPBasic(auto_error=False)
+    throttle = throttle or LoginThrottle()
+
+    def check(request: Request, credentials: HTTPBasicCredentials | None = Depends(basic)) -> str | None:
+        accounts = accounts_configured(runtime.store)
+        if not accounts and not legacy_password:
+            return None
+        ip = _client_ip(request)
+        wait = throttle.retry_after(ip)
+        if wait:
+            raise _too_many(wait)
+        if accounts:
             username = _authenticate(runtime, credentials)
             if username is None:
+                if credentials is not None:
+                    throttle.record_failure(ip)
                 raise _unauthorized()
             return username
-        if not legacy_password:
-            return None
-        if credentials is None or not secrets.compare_digest(credentials.password.encode(), legacy_password.encode()):
+        if credentials is None:
+            raise _unauthorized()
+        if not secrets.compare_digest(credentials.password.encode(), legacy_password.encode()):
+            throttle.record_failure(ip)
             raise _unauthorized()
         return None
 
     return check
 
 
-def require_beheerder(runtime: Any, username: str | None) -> None:
+def require_beheerder(
+    runtime: Any, username: str | None, detail: str = "alleen een beheerder kan instellingen wijzigen"
+) -> None:
     """Alleen beheerders mogen instellingen en gebruikers wijzigen. Zonder accounts geldt het oude gedrag."""
     if not accounts_configured(runtime.store):
         return
     if user_role(runtime.store, username) != "beheerder":
-        raise HTTPException(status_code=403, detail="alleen een beheerder kan instellingen wijzigen")
+        raise HTTPException(status_code=403, detail=detail)

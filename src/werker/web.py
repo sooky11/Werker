@@ -24,6 +24,37 @@ from werker.web_billing import billing_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Facturen en bankbestanden mogen hooguit 10 MB zijn (bij base64: na het decoderen).
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_TOO_LARGE = "het bestand is te groot: maximaal 10 MB"
+_JSON_SLACK = 64 * 1024  # ruimte voor de JSON eromheen en escapes
+_UPLOAD_PATHS = {
+    "/api/invoices/import": MAX_UPLOAD_BYTES * 2 + _JSON_SLACK,
+    "/api/invoices/validate": MAX_UPLOAD_BYTES * 2 + _JSON_SLACK,
+    "/api/invoices/bank": MAX_UPLOAD_BYTES * 2 + _JSON_SLACK,
+    "/api/invoices/import-file": (MAX_UPLOAD_BYTES * 4) // 3 + _JSON_SLACK,
+}
+
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+        "form-action 'self'"
+    ),
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+def _too_large() -> HTTPException:
+    return HTTPException(status_code=413, detail=_TOO_LARGE)
+
+
+def _check_text_size(text: str) -> None:
+    if len(text) > MAX_UPLOAD_BYTES or len(text.encode("utf-8")) > MAX_UPLOAD_BYTES:
+        raise _too_large()
+
 
 class ApproveIn(BaseModel):
     body: str | None = None
@@ -138,6 +169,37 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
             if not request.headers.get("content-type", "").startswith("application/json"):
                 return JSONResponse({"detail": "schrijven vereist application/json"}, status_code=415)
         return await call_next(request)
+
+    @app.middleware("http")
+    async def limit_upload_size(request: Request, call_next):
+        # Grove grens op de ruwe aanvraag, zodat een enorme upload niet eerst helemaal in het geheugen komt.
+        # De precieze grens van 10 MB op de inhoud controleren de routes zelf.
+        ceiling = _UPLOAD_PATHS.get(request.url.path) if request.method == "POST" else None
+        if ceiling is not None:
+            declared = request.headers.get("content-length")
+            if declared is not None:
+                try:
+                    if int(declared) > ceiling:
+                        return JSONResponse({"detail": _TOO_LARGE}, status_code=413)
+                except ValueError:
+                    return JSONResponse({"detail": "ongeldige Content-Length"}, status_code=400)
+            chunks: list[bytes] = []
+            size = 0
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > ceiling:
+                    return JSONResponse({"detail": _TOO_LARGE}, status_code=413)
+                chunks.append(chunk)
+            request._body = b"".join(chunks)  # de route leest de body hieruit opnieuw
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        # Als laatste toegevoegd, dus de buitenste laag: geldt ook voor de antwoorden van de middleware hierboven.
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
 
     def store() -> Store:
         return runtime.store
@@ -315,6 +377,7 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
 
     @app.post("/api/invoices/import", dependencies=[ui_auth])
     def import_invoice(payload: ImportIn) -> dict[str, Any]:
+        _check_text_size(payload.xml)
         try:
             invoice_id = runtime.invoicing.import_xml(payload.xml, client_id=payload.client_id)
         except InvoiceError as exc:
@@ -329,6 +392,8 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
             data = base64.b64decode(payload.content_base64, validate=True)
         except (binascii.Error, ValueError):
             raise HTTPException(status_code=422, detail={"problems": ["het bestand is geen geldige base64-inhoud"]})
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise _too_large()
         try:
             invoice_id = runtime.invoicing.import_document(data, filename=payload.filename)
         except InvoiceError as exc:
@@ -350,10 +415,12 @@ def create_app(runtime: Runtime, ui_password: str = "") -> FastAPI:
 
     @app.post("/api/invoices/validate", dependencies=[ui_auth])
     def validate_invoice(payload: InvoiceIn) -> dict[str, Any]:
+        _check_text_size(payload.xml)
         return validate_only(payload.xml)
 
     @app.post("/api/invoices/bank", dependencies=[ui_auth])
     def bank_import(payload: BankIn) -> dict[str, Any]:
+        _check_text_size(payload.csv)
         try:
             matched = runtime.invoicing.match_bank_file(payload.csv)
         except ValueError as exc:
